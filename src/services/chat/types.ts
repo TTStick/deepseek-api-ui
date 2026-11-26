@@ -94,6 +94,16 @@ export type AssistantMessage = MessageBranch & {
   stopDetails?: StopDetails
   /** 最近一次请求的用量，续写后更新 */
   usage?: MessageUsage
+  /** 本轮生成耗时（毫秒），用于 token 速度统计；续写会累加 */
+  elapsedMs?: number
+  /** 本轮自我检索注入的记忆上下文（后端 memory_recall 事件），仅展示不进上下文 */
+  recalledMemory?: {
+    injected: boolean
+    sections: Array<{ title: string; content: string }>
+    dialectic: string
+  }
+  /** agent 模式的工具活动与文件交付物（后端 agent_tool/agent_artifact 事件） */
+  agentEvents?: AgentActivityEvent[]
   error?: {
     /** upload：发送前补传附件失败，请求没有发出 */
     kind: ApiErrorKind | 'upload'
@@ -107,6 +117,30 @@ export type AssistantMessage = MessageBranch & {
 
 export type Message = UserMessage | AssistantMessage
 
+/** 会话级 SSH 主机配置（agent 模式的文件与执行目标；凭据只存本会话，不跨会话） */
+export type SessionSshConfig = {
+  host: string
+  port: number
+  username: string
+  password?: string
+  privateKey?: string
+  /** 远程工作目录（绝对路径） */
+  remotePath: string
+}
+
+/** agent 模式的活动事件：工具调用与文件交付物（来自后端自定义事件） */
+export type AgentActivityEvent =
+  | {
+      kind: 'tool'
+      toolUseId: string
+      name: string
+      input: string
+      status: 'running' | 'done'
+      output?: string
+      isError?: boolean
+    }
+  | { kind: 'artifact'; path: string; action: 'created' | 'updated' | 'generated'; size?: number }
+
 export type Session = {
   id: string
   title: string
@@ -116,15 +150,59 @@ export type Session = {
   messages: Message[]
   /** undefined 表示线性消息列表；null 表示空会话。 */
   rootMessageId?: string | null
+  /** 上下文压缩状态：摘要行全文（含围栏标记）与已归档轮数；旧数据无此字段自动兼容 */
+  compression?: {
+    summaryRow: string
+    archivedRounds: number
+    updatedAt: number
+  }
+  /** agent 模式：开启后本会话拥有独立工作区，可做文件操作与隔离执行 */
+  agentEnabled?: boolean
+  /** agent 模式的 SSH 主机配置（文件与执行改到远程主机） */
+  ssh?: SessionSshConfig
+  /** 所属分组名；undefined 表示未分组 */
+  group?: string
+  /** 是否已归档（隐藏到侧边栏底部「已归档」折叠区） */
+  archived?: boolean
+  /** 本对话的记忆权限：read=能否读取历史记忆，write=能否写入新记忆；缺省均允许（受全局开关约束） */
+  memory?: {
+    read: boolean
+    write: boolean
+  }
+  /** 是否置顶（排在列表最前） */
+  pinned?: boolean
 }
 
 /** 会话列表元数据；消息只在打开会话时加载。 */
-export type SessionSummary = Pick<Session, 'id' | 'title' | 'createdAt' | 'updatedAt'>
+export type SessionSummary = Pick<Session, 'id' | 'title' | 'createdAt' | 'updatedAt'> & {
+  /** 已归档（压缩）轮数，0 表示未压缩过 */
+  compressedRounds: number
+  /** 所属分组名；undefined 表示未分组 */
+  group?: string
+  /** 是否已归档（隐藏到侧边栏底部「已归档」折叠区） */
+  archived?: boolean
+  /** 是否置顶（排在列表最前） */
+  pinned?: boolean
+}
 
-/** 显式提取字段，避免将完整会话的消息带进列表。 */
-export const toSessionSummary = (session: SessionSummary): SessionSummary => ({
+/** 显式提取字段，避免将完整会话的消息带进列表。同时兼容 Session（含 compression）与 StoredSessionSummary（含 compressedRounds）两种输入。 */
+export const toSessionSummary = (session: {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  compression?: Session['compression']
+  compressedRounds?: number
+  group?: string
+  archived?: boolean
+  pinned?: boolean
+}): SessionSummary => ({
   id: session.id,
   title: session.title,
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
+  compressedRounds: session.compression?.archivedRounds ?? session.compressedRounds ?? 0,
+  group: session.group,
+  archived: session.archived,
+  pinned: session.pinned,
 })

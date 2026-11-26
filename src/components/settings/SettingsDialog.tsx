@@ -1,6 +1,8 @@
 import clsx from 'clsx'
 import { useRef, useState, type ReactNode } from 'react'
 import {
+  IconBrowseOutline16,
+  IconChartOutline16,
   IconDarkOutline16,
   IconDataOutline16,
   IconDownloadOutline16,
@@ -21,19 +23,30 @@ import { useChatStore } from '../../services/chat/store.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
   isChineseBrowser,
+  setCollapseThinking,
+  setFontSize,
   setLocale,
   setLocation,
+  setModel,
   setThemePreference,
   setTtsVoice,
   useSettings,
+  type FontSize,
   type ThemePreference,
 } from '../../services/settings.js'
-import { useTranslate, type TranslationKey, type TranslationMessage } from '../../i18n/index.js'
+import type { ChatModel } from '../../services/api/types.js'
+import { useTranslate, type TranslationKey } from '../../i18n/index.js'
 import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
 import { Select } from '../base/Select.js'
 import { showToast } from '../base/toastState.js'
 import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
+import { ImportConversation } from './ImportConversation.js'
+import { MemorySettings } from './MemorySettings.js'
+import { PasswordSetting } from './PasswordSetting.js'
+import { UsageSettings } from './UsageSettings.js'
+import { SettingCell, type Status } from './SettingCell.js'
+import { Toggle } from './Toggle.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
 
@@ -53,6 +66,12 @@ const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode
     label: 'settingDialogAsideGeneralOptionLabel',
     icon: <IconSettingsOutline16 />,
   },
+  {
+    value: 'memory',
+    label: 'settingDialogAsideMemoryOptionLabel',
+    icon: <IconBrowseOutline16 />,
+  },
+  { value: 'usage', label: 'settingDialogAsideUsageOptionLabel', icon: <IconChartOutline16 /> },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
 ]
 
@@ -105,11 +124,20 @@ const SettingsContent = ({
               <ThemeSetting />
               <LocaleSetting />
               <TtsVoiceSetting />
+              <ModelSetting />
+              <FontSizeSetting />
+              <CollapseThinkingSetting />
               <LocationSetting />
             </>
+          ) : section === 'memory' ? (
+            <MemorySettings />
+          ) : section === 'usage' ? (
+            <UsageSettings />
           ) : (
             <>
               <ApiKeyField editor={apiKeyEditor} />
+              <PasswordSetting />
+              <ImportConversation />
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
               <ExportHistory disabled={historyBusy} />
               <SettingCell
@@ -320,6 +348,74 @@ const TtsVoiceSetting = () => {
   )
 }
 
+/** 聊天模型：flash（快，默认）/ v4-pro（更强） */
+const ModelSetting = () => {
+  const t = useTranslate()
+  const model = useSettings((state) => state.model)
+  return (
+    <SettingCell
+      label={t('settingsModel')}
+      status={null}
+      action={
+        <Select
+          ariaLabel={t('settingsModel')}
+          value={model}
+          options={[
+            { value: 'deepseek-flash', label: t('settingsModelFlash') },
+            { value: 'deepseek-v4-pro', label: t('settingsModelV4Pro') },
+          ]}
+          onChange={(value) => setModel(value as ChatModel)}
+        />
+      }
+    />
+  )
+}
+
+/** 字体大小：小 / 标准 / 大 / 特大（整体缩放界面） */
+const FontSizeSetting = () => {
+  const t = useTranslate()
+  const fontSize = useSettings((state) => state.fontSize)
+  return (
+    <SettingCell
+      label={t('settingsFontSize')}
+      status={null}
+      action={
+        <Select
+          ariaLabel={t('settingsFontSize')}
+          value={fontSize}
+          options={[
+            { value: 'small', label: t('settingsFontSizeSmall') },
+            { value: 'medium', label: t('settingsFontSizeMedium') },
+            { value: 'large', label: t('settingsFontSizeLarge') },
+            { value: 'xlarge', label: t('settingsFontSizeXLarge') },
+          ]}
+          onChange={(value) => setFontSize(value as FontSize)}
+        />
+      }
+    />
+  )
+}
+
+/** 自动折叠思考内容：回答中的思考过程默认收起 */
+const CollapseThinkingSetting = () => {
+  const t = useTranslate()
+  const collapseThinking = useSettings((state) => state.collapseThinking)
+  return (
+    <SettingCell
+      label={t('collapseThinkingSwitch')}
+      description={t('collapseThinkingSwitchDescription')}
+      status={null}
+      action={
+        <Toggle
+          pressed={collapseThinking}
+          label={t('collapseThinkingSwitch')}
+          onChange={setCollapseThinking}
+        />
+      }
+    />
+  )
+}
+
 /** 覆盖导入的二次确认，叠在设置弹窗上 */
 const ImportConfirm = ({
   historyImport,
@@ -399,9 +495,6 @@ const ThemeSetting = () => {
   )
 }
 
-/** `reason` 为失败原因的文案 key，展示时按当前语言翻译后填入 `message` 参数。 */
-type Status = (TranslationMessage & { error?: boolean; reason?: TranslationKey }) | null
-
 /** 导出失败附带原因：预期的错误用对应文案作原因，其他错误用错误信息。 */
 const errorStatus = (key: TranslationKey, error: unknown): Status => ({
   key,
@@ -410,37 +503,6 @@ const errorStatus = (key: TranslationKey, error: unknown): Status => ({
     : { params: { message: error instanceof Error ? error.message : String(error) } }),
   error: true,
 })
-
-const SettingCell = ({
-  label,
-  description,
-  status,
-  action,
-  className,
-}: {
-  label: string
-  description?: string
-  status: Status
-  action: ReactNode
-  className?: string
-}) => {
-  const t = useTranslate()
-  return (
-    <div className={clsx(styles.cell, styles.row, className)}>
-      <div className={styles.text}>
-        <div className={styles.label}>{label}</div>
-        {status || description ? (
-          <div className={clsx(styles.description, status?.error && styles.error)}>
-            {status
-              ? t(status.key, status.reason ? { message: t(status.reason) } : status.params)
-              : description}
-          </div>
-        ) : null}
-      </div>
-      {action}
-    </div>
-  )
-}
 
 /** 选文件后先提示覆盖；确认后才检查文件并执行导入，任何错误都提示导入失败。 */
 const useHistoryImport = () => {

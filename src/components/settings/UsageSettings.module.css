@@ -1,0 +1,182 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.balanceCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgb(77 107 254 / 10%), transparent 65%);
+}
+
+.balanceTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.balanceLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}
+
+.balanceValue {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--dsw-alias-label-primary);
+}
+
+.balanceMeta {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.balanceUnavailable {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.costLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+
+  strong {
+    color: var(--dsw-alias-brand-text);
+    font-size: 14px;
+  }
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 14px;
+
+  span {
+    color: var(--dsw-alias-label-tertiary);
+    font-size: 12px;
+  }
+
+  strong {
+    color: var(--dsw-alias-label-primary);
+    font-size: 18px;
+    font-weight: 600;
+  }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 14px;
+}
+
+.sectionTitle {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.speedRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: baseline;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+
+  strong {
+    color: var(--dsw-alias-label-primary);
+    font-size: 20px;
+  }
+}
+
+.muted {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.days {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.dayRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.dayDate {
+  flex: none;
+  width: 48px;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.dayBar {
+  flex: 1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-3);
+
+  span {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: var(--dsw-alias-brand-primary);
+  }
+}
+
+.dayValue {
+  flex: none;
+  width: 58px;
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.note {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+@media (max-width: 560px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

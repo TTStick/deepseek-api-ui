@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { getAbortReason, throwIfAborted } from '../../utils/abort.js'
 import { createId } from '../../utils/id.js'
-import { ApiError, streamMessage } from '../api/client.js'
+import { ApiError, getAgentApiOrigin, streamChat } from '../api/client.js'
 import type { ChatModel, CreateMessageRequest } from '../api/types.js'
+import { showToast } from '../../components/base/toastState.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import {
   cancelUpload,
@@ -12,6 +13,7 @@ import {
   useUploads,
 } from '../attachments.js'
 import { useSettings } from '../settings.js'
+import { translate } from '../../i18n/index.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
 import {
@@ -26,15 +28,19 @@ import {
   applyEvent,
   canContinueReply,
   getContextRounds,
+  getReplyText,
   settleReply,
+  toCompressMessages,
   toRequestMessages,
 } from './reply.js'
+import { notifySessionDeleted, notifySessionSaved } from './syncEvents.js'
 import {
   toSessionSummary,
   type AssistantMessage,
   type FileAttachment,
   type Message,
   type Session,
+  type SessionSshConfig,
   type SessionSummary,
   type UserMessage,
 } from './types.js'
@@ -80,6 +86,9 @@ type ChatState = {
   activeId: string | null
   /** 正在生成回复的会话 */
   streaming: Record<string, AbortController>
+  /** 新对话页的待定偏好：发送首条消息时应用到新会话（不创建、不落盘空会话） */
+  pendingAgentEnabled: boolean
+  pendingMemory: { read: boolean; write: boolean }
 }
 
 export const useChatStore = create<ChatState>(() => ({
@@ -92,12 +101,17 @@ export const useChatStore = create<ChatState>(() => ({
   sessionSaveErrors: {},
   activeId: null,
   streaming: {},
+  pendingAgentEnabled: false,
+  pendingMemory: { read: true, write: true },
 }))
 
 const { getState: get, setState: set } = useChatStore
 
 const sortSessions = (sessions: SessionSummary[]) =>
-  [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)
+  [...sessions].sort(
+    (a, b) =>
+      Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt - a.updatedAt
+  )
 
 const getSession = (id: string) => {
   const cache = get().sessionCache
@@ -109,8 +123,16 @@ const getStreamController = (id: string) => {
   return Object.hasOwn(streams, id) ? streams[id] : undefined
 }
 
-const sameSummary = (a: SessionSummary, b: SessionSummary) =>
-  a.title === b.title && a.createdAt === b.createdAt && a.updatedAt === b.updatedAt
+const sameSummary = (
+  a: Pick<SessionSummary, 'title' | 'createdAt' | 'updatedAt' | 'group' | 'archived' | 'pinned'>,
+  b: Pick<SessionSummary, 'title' | 'createdAt' | 'updatedAt' | 'group' | 'archived' | 'pinned'>
+) =>
+  a.title === b.title &&
+  a.createdAt === b.createdAt &&
+  a.updatedAt === b.updatedAt &&
+  a.group === b.group &&
+  a.archived === b.archived &&
+  a.pinned === b.pinned
 
 const sessionAccess = new Map<string, number>()
 const unsavedSessions = new Set<string>()
@@ -187,6 +209,8 @@ const updateReply = (sessionId: string, reply: AssistantMessage) =>
   }))
 
 const persist = (sessionId: string) => {
+  // 每次落盘都推进更新时间：既用于会话排序，也让服务端同步按后写覆盖判断
+  updateSession(sessionId, (session) => ({ ...session, updatedAt: Date.now() }))
   const session = getSession(sessionId)
   if (session) {
     unsavedSessions.add(sessionId)
@@ -201,6 +225,7 @@ const persist = (sessionId: string) => {
         if (epoch !== historyEpoch || !getSession(sessionId)) {
           return
         }
+        notifySessionSaved(sessionId)
         if (pendingFiles.get(sessionId) === files) {
           pendingFiles.delete(sessionId)
         }
@@ -260,14 +285,14 @@ export const bindChatPersistence = () => {
   }
 }
 
-/** 按当前开关创建回复：深度思考对应 thinking，智能搜索控制 deepseek_web_search。 */
+/** 按当前开关创建回复：深度思考对应 thinking，智能搜索控制 deepseek_web_search，模型来自设置。 */
 const createReply = (): AssistantMessage => {
-  const { thinking, search } = useSettings.getState()
+  const { thinking, search, model } = useSettings.getState()
   return {
     id: createId(),
     role: 'assistant',
     createdAt: Date.now(),
-    model: MODEL,
+    model,
     thinking,
     search,
     prefix: true,
@@ -309,6 +334,10 @@ export const initChat = (): Promise<void> => {
       const summaries = await db.loadSessionSummaries()
       if (epoch === historyEpoch) {
         set({ ready: true, sessions: sortSessions(summaries) })
+        // 界面就绪后开始与服务端同步会话（未配置服务端时自动静默失败）
+        void import('./sync.js')
+          .then(({ startSessionSync }) => startSessionSync())
+          .catch(() => undefined)
       }
     } catch (error) {
       if (epoch === historyEpoch) {
@@ -454,6 +483,148 @@ export const newChat = () => {
   }
 }
 
+/** 回收会话的 agent 工作区与 SSH 连接（fire-and-forget，服务端幂等） */
+const cleanupAgentWorkspace = (sessionId: string) => {
+  fetch(`${getAgentApiOrigin()}/api/agent/cleanup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId }),
+    keepalive: true,
+  }).catch(() => {
+    // 清理失败不阻塞删除；服务端重启后残留目录不影响会话隔离
+  })
+}
+
+/** 切换会话的 agent 模式；关闭时立即回收工作区与 SSH 连接 */
+export const setSessionAgentEnabled = (sessionId: string, enabled: boolean) => {
+  updateSession(sessionId, (session) => ({
+    ...session,
+    agentEnabled: enabled,
+    updatedAt: Date.now(),
+  }))
+  persist(sessionId)
+  if (!enabled) {
+    cleanupAgentWorkspace(sessionId)
+  }
+}
+
+/** 保存会话的 SSH 主机配置（服务端按配置指纹自动重连，凭据只存本会话） */
+export const setSessionSsh = (sessionId: string, ssh: SessionSshConfig | null) => {
+  updateSession(sessionId, (session) => ({
+    ...session,
+    ssh: ssh ?? undefined,
+    updatedAt: Date.now(),
+  }))
+  persist(sessionId)
+}
+
+/** 导入单个对话：以新会话加入列表顶部并落盘（附件原件不随文本导入） */
+export const importSession = async (session: Session): Promise<string> => {
+  if (get().importingHistory) {
+    return session.id
+  }
+  const id = createId()
+  const imported: Session = { ...session, id, createdAt: Date.now(), updatedAt: Date.now() }
+  set((state) => ({
+    sessionCache: { ...state.sessionCache, [id]: imported },
+    sessions: sortSessions([toSessionSummary(imported), ...state.sessions]),
+  }))
+  await db.saveSession(imported, [])
+  notifySessionSaved(imported.id)
+  return id
+}
+
+/**
+ * 回溯对话：截断该消息之后的所有内容（Hermes /rewind 语义），
+ * 该消息成为当前路径的终点，之后可以继续发送新消息。
+ */
+export const rewindSession = (sessionId: string, messageId: string) => {
+  if (get().importingHistory || deletingSessions.has(sessionId) || get().streaming[sessionId]) {
+    return
+  }
+  const session = getSession(sessionId)
+  if (!session) {
+    return
+  }
+  const index = session.messages.findIndex((message) => message.id === messageId)
+  if (index < 0) {
+    return
+  }
+  const messages = session.messages.slice(0, index + 1)
+  messages[index] = { ...messages[index], selectedChildId: undefined }
+  updateSession(sessionId, (current) => ({
+    ...current,
+    messages,
+    updatedAt: Date.now(),
+  }))
+  persist(sessionId)
+}
+
+/** 新对话页的待定 agent 开关（发送首条消息时应用，不创建空会话） */
+export const setPendingAgentEnabled = (enabled: boolean) => {
+  set({ pendingAgentEnabled: enabled })
+}
+
+/** 新对话页的待定记忆权限（发送首条消息时应用） */
+export const setPendingMemory = (read: boolean, write: boolean) => {
+  set({ pendingMemory: { read, write } })
+}
+
+/** 手动压缩当前会话的中段轮次（头部按钮 / /compress 命令）；压缩开关关闭或轮次太少时忽略 */
+export const compressSession = async (sessionId: string) => {  const state = get()
+  const session = getSession(sessionId)
+  if (!session || state.streaming[sessionId]) {
+    return
+  }
+  const { apiKey, compressionEnabled } = useSettings.getState()
+  if (!apiKey || !compressionEnabled) {
+    return
+  }
+  const history = getVisibleMessages(session)
+  const rounds = getContextRounds(history, session.compression?.archivedRounds ?? 0).length
+  if (rounds < 4) {
+    showToast({ key: 'compressNothingToDo' })
+    return
+  }
+  const messages = toCompressMessages(history, session.compression)
+  try {
+    const response = await fetch(`${getAgentApiOrigin()}/api/compress`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey,
+        sessionId,
+        messages,
+        // 不传 thresholdTokens：force 模式跳过触发门，尾部预算按后端默认阈值计算
+        compression: { enabled: true },
+      }),
+    })
+    const result = (await response.json()) as {
+      compressed?: boolean
+      summary?: string
+      archiveRounds?: number
+    }
+    if (result.compressed && result.summary && result.archiveRounds) {
+      const summaryRow = result.summary
+      const archiveRounds = result.archiveRounds
+      updateSession(sessionId, (current) => ({
+        ...current,
+        updatedAt: Date.now(),
+        compression: {
+          summaryRow,
+          archivedRounds: (current.compression?.archivedRounds ?? 0) + archiveRounds,
+          updatedAt: Date.now(),
+        },
+      }))
+      showToast({ key: 'compressDone', params: { count: archiveRounds } })
+    } else {
+      showToast({ key: 'compressNothingToDo' })
+    }
+  } catch {
+    showToast({ key: 'compressFailed', type: 'error' })
+  }
+}
+
 export const selectSession = (id: string) => {
   if (!get().importingHistory && get().sessions.some((session) => session.id === id)) {
     touchSession(id)
@@ -475,12 +646,177 @@ export const renameSession = (id: string, title: string) => {
     updateSession(id, (session) => ({ ...session, title }))
     persist(id)
   } else {
+    const now = Date.now()
     set((state) => ({
-      sessions: state.sessions.map((session) =>
-        session.id === id ? { ...session, title } : session
+      sessions: sortSessions(
+        state.sessions.map((session) =>
+          session.id === id ? { ...session, title, updatedAt: now } : session
+        )
       ),
     }))
-    void db.renameSession(id, title).catch(db.reportStorageError('rename session'))
+    void db
+      .patchSessionMeta(id, (session) => {
+        session.title = title
+        session.updatedAt = now
+      })
+      .catch(db.reportStorageError('rename session'))
+  }
+}
+
+/** 移动会话到分组（null 为移出分组） */
+export const setSessionGroup = (id: string, group: string | null) => {
+  if (get().importingHistory || deletingSessions.has(id)) {
+    return
+  }
+  if (getSession(id)) {
+    updateSession(id, (session) => ({ ...session, group: group ?? undefined }))
+    persist(id)
+  } else {
+    const now = Date.now()
+    set((state) => ({
+      sessions: sortSessions(
+        state.sessions.map((session) =>
+          session.id === id
+            ? { ...session, group: group ?? undefined, updatedAt: now }
+            : session
+        )
+      ),
+    }))
+    void db
+      .patchSessionMeta(id, (session) => {
+        session.group = group ?? undefined
+        session.updatedAt = now
+      })
+      .catch(db.reportStorageError('set session group'))
+  }
+}
+
+/** 设置本对话的记忆权限（read 读取历史记忆 / write 写入新记忆） */
+export const setSessionMemory = (id: string, read: boolean, write: boolean) => {
+  if (get().importingHistory || deletingSessions.has(id)) {
+    return
+  }
+  const memory = { read, write }
+  if (getSession(id)) {
+    updateSession(id, (session) => ({ ...session, memory }))
+    persist(id)
+  } else {
+    const now = Date.now()
+    set((state) => ({
+      sessions: sortSessions(
+        state.sessions.map((session) =>
+          session.id === id ? { ...session, updatedAt: now } : session
+        )
+      ),
+    }))
+    void db
+      .patchSessionMeta(id, (session) => {
+        session.memory = memory
+        session.updatedAt = now
+      })
+      .catch(db.reportStorageError('set session memory'))
+  }
+}
+
+/** 置顶 / 取消置顶会话（置顶后排在列表最前） */
+export const setSessionPinned = (id: string, pinned: boolean) => {
+  if (get().importingHistory || deletingSessions.has(id)) {
+    return
+  }
+  if (getSession(id)) {
+    updateSession(id, (session) => ({ ...session, pinned }))
+    persist(id)
+  } else {
+    const now = Date.now()
+    set((state) => ({
+      sessions: sortSessions(
+        state.sessions.map((session) =>
+          session.id === id ? { ...session, pinned, updatedAt: now } : session
+        )
+      ),
+    }))
+    void db
+      .patchSessionMeta(id, (session) => {
+        session.pinned = pinned
+        session.updatedAt = now
+      })
+      .catch(db.reportStorageError('set session pinned'))
+  }
+}
+
+/**
+ * 复制对话：深拷贝全部消息与分支（id 全部重映射），附件沿用原件的本地引用（原件共享、按引用计数清理）。
+ * 保留标题（加副本后缀）、分组、记忆权限、压缩状态与 agent 开关；
+ * 不复制 SSH 凭据、置顶与归档状态，agent 交付事件（指向原工作区文件）一并清除。
+ */
+export const duplicateSession = async (id: string): Promise<string | null> => {
+  if (get().importingHistory || deletingSessions.has(id)) {
+    return null
+  }
+  const loaded = getSession(id) ?? (await db.loadSession(id).catch(() => undefined))
+  const source = loaded ? normalizeSession(loaded) : undefined
+  if (!source || source.messages.length === 0) {
+    return null
+  }
+  const idMap = new Map<string, string>()
+  for (const message of source.messages) {
+    idMap.set(message.id, createId())
+  }
+  const remap = (messageId: string | null | undefined): string | undefined =>
+    messageId ? (idMap.get(messageId) ?? messageId) : undefined
+  const messages = source.messages.map((message) => ({
+    ...message,
+    id: idMap.get(message.id) as string,
+    parentId: remap(message.parentId),
+    selectedChildId: remap(message.selectedChildId),
+    // 交付事件指向原会话工作区文件，复制后不可用
+    agentEvents: undefined,
+  }))
+  const now = Date.now()
+  const duplicated: Session = {
+    ...source,
+    id: createId(),
+    title: `${source.title}${translate('sessionCopySuffix')}`,
+    createdAt: now,
+    updatedAt: now,
+    messages,
+    rootMessageId: remap(source.rootMessageId),
+    pinned: undefined,
+    archived: undefined,
+    ssh: undefined,
+  }
+  set((state) => ({
+    sessionCache: { ...state.sessionCache, [duplicated.id]: duplicated },
+    sessions: sortSessions([toSessionSummary(duplicated), ...state.sessions]),
+  }))
+  await db.saveSession(duplicated, [])
+  notifySessionSaved(duplicated.id)
+  return duplicated.id
+}
+
+/** 归档 / 取消归档会话（归档后移到侧边栏底部折叠区） */
+export const setSessionArchived = (id: string, archived: boolean) => {
+  if (get().importingHistory || deletingSessions.has(id)) {
+    return
+  }
+  if (getSession(id)) {
+    updateSession(id, (session) => ({ ...session, archived }))
+    persist(id)
+  } else {
+    const now = Date.now()
+    set((state) => ({
+      sessions: sortSessions(
+        state.sessions.map((session) =>
+          session.id === id ? { ...session, archived, updatedAt: now } : session
+        )
+      ),
+    }))
+    void db
+      .patchSessionMeta(id, (session) => {
+        session.archived = archived
+        session.updatedAt = now
+      })
+      .catch(db.reportStorageError('set session archived'))
   }
 }
 
@@ -508,6 +844,8 @@ const removeSessionData = async (id: string): Promise<boolean> => {
       return false
     }
     await db.deleteSession(id)
+    // 会话删除即回收其 agent 工作区与 SSH 连接（对话资源不跨会话）
+    void cleanupAgentWorkspace(id)
     if (epoch !== historyEpoch) {
       return true
     }
@@ -529,6 +867,7 @@ const removeSessionData = async (id: string): Promise<boolean> => {
       ),
       activeId: state.activeId === id ? null : state.activeId,
     }))
+    notifySessionDeleted(id)
     return true
   } catch (error) {
     db.reportStorageError('delete session')(error)
@@ -547,6 +886,59 @@ const removeSessionData = async (id: string): Promise<boolean> => {
 }
 
 export const stopReply = (sessionId: string) => getStreamController(sessionId)?.abort()
+
+/** 服务端同步：把远端会话写入本地状态（调用方负责先写 IndexedDB），不触发反向推送 */
+export const applySyncedSession = (session: Session): boolean => {
+  if (get().importingHistory || get().streaming[session.id]) {
+    return false
+  }
+  touchSession(session.id)
+  set((state) => ({
+    sessionCache: { ...state.sessionCache, [session.id]: session },
+    sessions: sortSessions([
+      ...state.sessions.filter((summary) => summary.id !== session.id),
+      toSessionSummary(session),
+    ]),
+  }))
+  return true
+}
+
+/** 服务端墓碑同步：只删除本地副本，不回调删除通知（避免把删除再次发回服务端） */
+export const removeSyncedSession = async (id: string): Promise<boolean> => {
+  if (get().importingHistory || deletingSessions.has(id)) {
+    return false
+  }
+  deletingSessions.add(id)
+  try {
+    getStreamController(id)?.abort()
+    await waitForIdle(id)
+    await db.deleteSession(id)
+    sessionLoads.delete(id)
+    sessionAccess.delete(id)
+    unsavedSessions.delete(id)
+    pendingFiles.delete(id)
+    clearDraft(id)
+    set((state) => ({
+      sessions: state.sessions.filter((session) => session.id !== id),
+      sessionCache: Object.fromEntries(
+        Object.entries(state.sessionCache).filter(([key]) => key !== id)
+      ),
+      sessionLoadErrors: Object.fromEntries(
+        Object.entries(state.sessionLoadErrors).filter(([key]) => key !== id)
+      ),
+      sessionSaveErrors: Object.fromEntries(
+        Object.entries(state.sessionSaveErrors).filter(([key]) => key !== id)
+      ),
+      activeId: state.activeId === id ? null : state.activeId,
+    }))
+    return true
+  } catch (error) {
+    db.reportStorageError('delete synced session')(error)
+    return false
+  } finally {
+    deletingSessions.delete(id)
+  }
+}
 
 /**
  * 提交指定会话的最新草稿；null 表示新建会话。
@@ -577,6 +969,9 @@ export const sendMessage = (targetSessionId: string | null) => {
       updatedAt: now,
       messages: [],
       rootMessageId: null,
+      // 新对话页配置的待定偏好：首条消息时应用到新会话
+      agentEnabled: get().pendingAgentEnabled,
+      memory: { ...get().pendingMemory },
     }
     sessionId = session.id
     touchSession(session.id)
@@ -584,6 +979,9 @@ export const sendMessage = (targetSessionId: string | null) => {
       sessions: [toSessionSummary(session), ...state.sessions],
       sessionCache: { ...state.sessionCache, [session.id]: session },
       activeId: session.id,
+      // 待定偏好消费后复位
+      pendingAgentEnabled: false,
+      pendingMemory: { read: true, write: true },
     }))
   }
   const current = getSession(sessionId)
@@ -979,12 +1377,38 @@ const waitForRetry = (attempt: number, signal: AbortSignal) =>
     signal.addEventListener('abort', onAbort, { once: true })
   })
 
+/** 提问转纯文本（写入记忆后端用）：正文 + 附件名清单 */
+const describeQuestion = (question: UserMessage): string => {
+  const parts = [question.content]
+  if (question.files.length) {
+    parts.push(question.files.map((file) => `[附件: ${file.name}]`).join(' '))
+  }
+  return parts.filter(Boolean).join('\n')
+}
+
+/** 轮次收尾后通知后端写入记忆并后台刷新召回（fire-and-forget） */
+const notifyTurnComplete = (
+  sessionId: string,
+  apiKey: string,
+  turn: { query: string; userContent: string; assistantContent: string }
+) => {
+  fetch(`${getAgentApiOrigin()}/api/chat/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ apiKey, sessionId, ...turn }),
+    keepalive: true,
+  }).catch(() => {
+    // 记忆写入失败不影响聊天主流程，后端会记录状态
+  })
+}
+
 /**
  * 请求并消费流：先补齐附件的 serverId，再发请求；流式增量按动画帧刷新内存，完成、失败或停止后落盘。
  * 补传失败时回复记为 upload 错误，可重试。
  * 服务端判定 file_id 失效时重新补传后重发，退避重试且次数有上限，超过则按原始报错收尾。
  */
 const streamReply = async (sessionId: string, initial: AssistantMessage, request: Request) => {
+  const startedAt = Date.now()
   const controller = new AbortController()
   if (!getSession(sessionId)?.title) {
     titleRequests.add(controller)
@@ -992,6 +1416,10 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
   set((state) => ({ streaming: { ...state.streaming, [sessionId]: controller } }))
   let reply = initial
   let frame = 0
+  /** 成功收尾的轮次内容，finally 里通知后端写入记忆 */
+  let completedTurn: { query: string; userContent: string; assistantContent: string } | null = null
+  /** 本轮提问的纯文本，供 catch 分支使用（prepared 声明在 try 内不可见） */
+  let questionText = ''
   const flush = () => {
     cancelAnimationFrame(frame)
     frame = 0
@@ -1007,6 +1435,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       try {
         const prepared = await prepareFiles(sessionId, request, controller.signal)
         preparing = false
+        questionText = describeQuestion(prepared.question)
         // 附件就绪后获取本轮信息；续写沿用原回答快照，重新生成的快照独立保存。
         const latestReminder = prepared.prefix
           ? prepared.prefix.latestReminder
@@ -1014,28 +1443,111 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         reply = { ...reply, latestReminder }
         updateReply(sessionId, reply)
         persist(sessionId)
+        const compression = getSession(sessionId)?.compression
         const messages = toRequestMessages(
           prepared.history,
           prepared.question,
           prepared.prefix,
           initial.thinking ?? false,
-          latestReminder
+          latestReminder,
+          compression
+            ? { summaryRow: compression.summaryRow, archivedRounds: compression.archivedRounds }
+            : undefined
         )
-        const events = streamMessage(
-          useSettings.getState().apiKey ?? '',
+        const events = streamChat(
           {
-            model: initial.model ?? MODEL,
-            system: SYSTEM_PROMPT,
-            messages,
-            thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
-            safety_check: SAFETY_CHECK,
-            tools: serverTools(initial.search ?? false),
-            ...(titleRequests.has(controller) ? { title: { enabled: true } } : {}),
+            apiKey: useSettings.getState().apiKey ?? '',
+            sessionId,
+            request: {
+              model: initial.model ?? MODEL,
+              system: SYSTEM_PROMPT,
+              messages,
+              thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
+              safety_check: SAFETY_CHECK,
+              tools: serverTools(initial.search ?? false),
+              ...(titleRequests.has(controller) ? { title: { enabled: true } } : {}),
+            },
+            // 记忆开关：全局总开关 + 本对话的读/写权限（缺省均允许）
+            memory: {
+              enabled: useSettings.getState().memoryEnabled,
+              read: getSession(sessionId)?.memory?.read ?? true,
+              write: getSession(sessionId)?.memory?.write ?? true,
+            },
+            compression: { enabled: useSettings.getState().compressionEnabled },
+            agent: {
+              enabled: getSession(sessionId)?.agentEnabled ?? false,
+              ssh: getSession(sessionId)?.ssh,
+            },
           },
           controller.signal
         )
         const blockIndexes = new Map<number, number>()
         for await (const event of events) {
+          // 记忆召回是后端追加的元事件：存入回复供展示面板渲染，不参与块合并
+          if (event.type === 'memory_recall') {
+            reply = {
+              ...reply,
+              recalledMemory: {
+                injected: event.injected,
+                sections: event.sections,
+                dialectic: event.dialectic,
+              },
+            }
+            continue
+          }
+          // 上下文压缩：更新会话的摘要行与归档轮数，展示层据此渲染分隔条
+          if (event.type === 'context_compressed') {
+            if (event.archiveRounds > 0 && event.summary) {
+              updateSession(sessionId, (session) => ({
+                ...session,
+                updatedAt: Date.now(),
+                compression: {
+                  summaryRow: event.summary,
+                  archivedRounds: (session.compression?.archivedRounds ?? 0) + event.archiveRounds,
+                  updatedAt: Date.now(),
+                },
+              }))
+            }
+            continue
+          }
+          // agent 工具活动与交付物：累积进回复，供消息内时间线渲染
+          if (event.type === 'agent_tool') {
+            reply = {
+              ...reply,
+              agentEvents: [
+                ...(reply.agentEvents ?? []),
+                {
+                  kind: 'tool',
+                  toolUseId: event.toolUseId,
+                  name: event.name,
+                  input: JSON.stringify(event.input ?? {}, null, 2),
+                  status: 'running',
+                },
+              ],
+            }
+            continue
+          }
+          if (event.type === 'agent_tool_result') {
+            reply = {
+              ...reply,
+              agentEvents: (reply.agentEvents ?? []).map((entry) =>
+                entry.kind === 'tool' && entry.toolUseId === event.toolUseId
+                  ? { ...entry, status: 'done', output: event.output, isError: event.isError }
+                  : entry
+              ),
+            }
+            continue
+          }
+          if (event.type === 'agent_artifact') {
+            reply = {
+              ...reply,
+              agentEvents: [
+                ...(reply.agentEvents ?? []),
+                { kind: 'artifact', path: event.path, action: event.action, size: event.size },
+              ],
+            }
+            continue
+          }
           receivedContent ||= event.type === 'content_block_start'
           if (
             event.type === 'message_delta' &&
@@ -1057,6 +1569,11 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           }
         }
         reply = settleReply(reply, 'done', Date.now())
+        completedTurn = {
+          query: questionText,
+          userContent: questionText,
+          assistantContent: getReplyText(reply),
+        }
         break
       } catch (error) {
         if (controller.signal.aborted) {
@@ -1088,6 +1605,11 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         if (error instanceof ApiError && error.kind === 'interrupted' && reply.stopReason) {
           // 已收到 message_delta 的结束原因，只是缺了结尾的 message_stop
           reply = settleReply(reply, 'done', Date.now())
+          completedTurn = {
+            query: questionText,
+            userContent: questionText,
+            assistantContent: getReplyText(reply),
+          }
         } else if (error instanceof ApiError) {
           reply = settleReply(reply, 'error', Date.now(), {
             kind: error.kind,
@@ -1108,6 +1630,11 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
     titleRequests.delete(controller)
     streamFlushes.delete(sessionId)
     cancelAnimationFrame(frame)
+    // 记录本轮生成耗时（续写累加），供 token 速度统计使用
+    reply = {
+      ...reply,
+      elapsedMs: (reply.elapsedMs ?? 0) + Math.max(0, Date.now() - startedAt),
+    }
     updateReply(sessionId, reply)
     set((state) => ({
       streaming: Object.fromEntries(
@@ -1115,5 +1642,13 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       ),
     }))
     persist(sessionId)
+    // 轮次成功收尾后通知后端：写入记忆 + 后台刷新下一轮召回（本对话写入权限关闭时跳过）
+    if (
+      completedTurn &&
+      useSettings.getState().memoryEnabled &&
+      (getSession(sessionId)?.memory?.write ?? true)
+    ) {
+      notifyTurnComplete(sessionId, useSettings.getState().apiKey ?? '', completedTurn)
+    }
   }
 }

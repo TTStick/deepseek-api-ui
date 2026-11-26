@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import {
+  IconCodeOutline14,
   IconGlobeLanguageOutline14,
   IconPaperclipOutline16,
   IconSendOutline16,
@@ -9,9 +10,17 @@ import {
 } from '../base/icons.js'
 import { setSearch, setThinking, useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
-import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
+import {
+  compressSession,
+  sendMessage,
+  setPendingAgentEnabled,
+  setSessionAgentEnabled,
+  stopReply,
+  useChatStore,
+} from '../../services/chat/store.js'
 import {
   addDraftFiles,
+  clearDraft,
   EMPTY_DRAFT,
   getDraft,
   prepareDraftMessage,
@@ -48,6 +57,12 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const draftReady = useUploads((state) => prepareDraftMessage(draft, state.tasks) !== null)
   const streaming = useChatStore(
     (state) => sessionId !== null && Object.hasOwn(state.streaming, sessionId)
+  )
+  /** agent 模式为会话级开关：会话内读会话状态，新对话页读待定偏好（首条消息时应用） */
+  const agentEnabled = useChatStore((state) =>
+    sessionId !== null
+      ? state.sessionCache[sessionId]?.agentEnabled === true
+      : state.pendingAgentEnabled
   )
   const thinking = useSettings((state) => state.thinking)
   const importingHistory = useChatStore((state) => state.importingHistory)
@@ -135,12 +150,20 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const send = () => {
     if (
       useChatStore.getState().importingHistory ||
-      voice.status !== 'idle' ||
-      !prepareDraftMessage(getDraft(sessionId), useUploads.getState().tasks)
+      voice.status !== 'idle'
     ) {
       return
     }
+    // /compress 命令：不发送消息，改为手动压缩当前会话上下文
+    if (sessionId && getDraft(sessionId).text.trim() === '/compress') {
+      clearDraft(sessionId)
+      void compressSession(sessionId)
+      return
+    }
     // 文本与上传完成态由提交动作读取最新快照，不使用上一次渲染的草稿。
+    if (!prepareDraftMessage(getDraft(sessionId), useUploads.getState().tasks)) {
+      return
+    }
     if (!ensureApiKey() || !sendMessage(sessionId)) {
       return
     }
@@ -224,6 +247,25 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
             >
               <IconGlobeLanguageOutline14 />
               <span className={styles.toggleLabel}>{t('search')}</span>
+            </button>
+          </Tooltip>
+          <Tooltip content={t('agentSwitchTooltip')}>
+            <button
+              type="button"
+              className={clsx(styles.toggle, agentEnabled && styles.selected)}
+              aria-label={t('agentSwitch')}
+              aria-pressed={agentEnabled}
+              onClick={() => {
+                if (sessionId) {
+                  setSessionAgentEnabled(sessionId, !agentEnabled)
+                } else {
+                  // 新对话页：只记录待定偏好，不创建会话、不跳转
+                  setPendingAgentEnabled(!agentEnabled)
+                }
+              }}
+            >
+              <IconCodeOutline14 />
+              <span className={styles.toggleLabel}>{t('agentSwitch')}</span>
             </button>
           </Tooltip>
         </div>

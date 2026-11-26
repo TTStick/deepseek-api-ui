@@ -2,11 +2,11 @@ import { useTranslate } from '../../i18n/index.js'
 import clsx from 'clsx'
 import { memo, useLayoutEffect, useRef, useState } from 'react'
 import { useIsMobile } from '../../app/viewport.js'
-import { IconEditOutline16 } from '../base/icons.js'
+import { IconEditOutline16, IconRewindOutline16 } from '../base/icons.js'
 import { getFileViewType, isImage } from '../../services/attachments.js'
 import { editMessage, retryUpload } from '../../services/chat/store.js'
 import { stopReadAloud } from '../../services/speech/readAloud.js'
-import type { UserMessage as UserMessageType } from '../../services/chat/types.js'
+import type { Message, UserMessage as UserMessageType } from '../../services/chat/types.js'
 import { Button } from '../base/Button.js'
 import { IconButton } from '../base/IconButton.js'
 import { ensureApiKey } from '../settings/settingsDialogState.js'
@@ -28,6 +28,7 @@ export const UserMessage = memo(function UserMessage({
   busy,
   versions,
   onSelectVersion,
+  onRewind,
 }: {
   sessionId: string
   message: UserMessageType
@@ -38,6 +39,7 @@ export const UserMessage = memo(function UserMessage({
   busy: boolean
   versions: MessageVersions
   onSelectVersion: SelectMessageVersion
+  onRewind: (message: Message) => void
 }) {
   const t = useTranslate()
   const [editing, setEditing] = useState(false)
@@ -128,6 +130,15 @@ export const UserMessage = memo(function UserMessage({
                   setEditing(true)
                 }}
               />
+              {!isLast ? (
+                <IconButton
+                  icon={<IconRewindOutline16 />}
+                  tooltip={t('rewindAction')}
+                  tooltipPlacement="bottom"
+                  disabled={busy}
+                  onClick={() => onRewind(message)}
+                />
+              ) : null}
             </div>
             <BranchSwitcher versions={versions} disabled={busy} onSelect={onSelectVersion} />
           </div>

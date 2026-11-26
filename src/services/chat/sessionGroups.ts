@@ -6,10 +6,60 @@ const DAY = 86_400_000
 
 const startOfDay = (time: number) => new Date(time).setHours(0, 0, 0, 0)
 
-/** 分组：今天 / 昨天 / 7 天内 / 30 天内 / 按月 */
-export const groupSessions = (sessions: SessionSummary[], now: number, t = translate) => {
-  const groups: { key: string; label: string; sessions: SessionSummary[] }[] = []
+export type SessionSection = {
+  key: string
+  label: string
+  sessions: SessionSummary[]
+  /** 'pinned' = 置顶；'timeline' = 时间分组（未分组会话）；'group' = 自定义分组；'archive' = 已归档 */
+  kind: 'pinned' | 'timeline' | 'group' | 'archive'
+}
+
+const byUpdatedDesc = (a: SessionSummary, b: SessionSummary) => b.updatedAt - a.updatedAt
+
+/**
+ * 侧边栏分区：置顶 → 未分组会话按时间分组（今天/昨天/7 天内/30 天内/按月）→
+ * 自定义分组（按名称排序）→ 已归档（折叠区）。
+ */
+export const groupSessions = (
+  sessions: SessionSummary[],
+  now: number,
+  t = translate
+): SessionSection[] => {
+  const archived: SessionSummary[] = []
+  const pinned: SessionSummary[] = []
+  const byGroup = new Map<string, SessionSummary[]>()
+  const loose: SessionSummary[] = []
   for (const session of sessions) {
+    if (session.archived) {
+      archived.push(session)
+    } else if (session.pinned) {
+      pinned.push(session)
+    } else if (session.group) {
+      const list = byGroup.get(session.group)
+      if (list) {
+        list.push(session)
+      } else {
+        byGroup.set(session.group, [session])
+      }
+    } else {
+      loose.push(session)
+    }
+  }
+
+  const sections: SessionSection[] = []
+
+  // 置顶
+  if (pinned.length > 0) {
+    sections.push({
+      key: 'pinned',
+      label: t('sessionPinnedSection'),
+      sessions: pinned.sort(byUpdatedDesc),
+      kind: 'pinned',
+    })
+  }
+
+  // 未分组会话：沿用时间分组
+  for (const session of loose.sort(byUpdatedDesc)) {
     const diff = Math.floor((now - startOfDay(session.updatedAt)) / DAY)
     const key =
       diff <= 0
@@ -22,12 +72,38 @@ export const groupSessions = (sessions: SessionSummary[], now: number, t = trans
               ? 'sessionHistoryTimelineLabel30days'
               : null
     const groupKey = key ?? monthKey(session.updatedAt) ?? ''
-    const last = groups.at(-1)
-    if (last?.key === groupKey) {
+    const last = sections.at(-1)
+    if (last?.kind === 'timeline' && last.key === groupKey) {
       last.sessions.push(session)
     } else {
-      groups.push({ key: groupKey, label: key ? t(key) : groupKey, sessions: [session] })
+      sections.push({
+        key: groupKey,
+        label: key ? t(key) : groupKey,
+        sessions: [session],
+        kind: 'timeline',
+      })
     }
   }
-  return groups
+
+  // 自定义分组（按名称排序，组内按更新时间倒序）
+  for (const [name, list] of [...byGroup.entries()].sort((a, b) => a[0].localeCompare(b[0], 'zh-CN'))) {
+    sections.push({ key: `group:${name}`, label: name, sessions: list.sort(byUpdatedDesc), kind: 'group' })
+  }
+
+  // 已归档
+  if (archived.length > 0) {
+    sections.push({
+      key: 'archive',
+      label: t('sessionGroupArchive'),
+      sessions: archived.sort(byUpdatedDesc),
+      kind: 'archive',
+    })
+  }
+  return sections
 }
+
+/** 现有分组名列表（去重排序，供「移动到分组」使用） */
+export const listSessionGroups = (sessions: SessionSummary[]): string[] =>
+  [...new Set(sessions.map((session) => session.group).filter((group): group is string => Boolean(group)))].sort(
+    (a, b) => a.localeCompare(b, 'zh-CN')
+  )

@@ -78,6 +78,10 @@ export const request = async (url: string, init: RequestInit): Promise<Response>
     throw new ApiError('network', error instanceof Error ? error.message : String(error))
   }
   if (!response.ok) {
+    // 登录会话失效：通知登录页重新验证
+    if (response.status === 401 && url.includes('/api/')) {
+      window.dispatchEvent(new Event('myagent:auth-required'))
+    }
     throw await readErrorResponse(response)
   }
   return response
@@ -172,6 +176,104 @@ export async function* streamMessage(
     }
     if (isErrorBody(payload)) {
       throw new ApiError('stream', payload.error.message)
+    }
+    if (eventName === 'error') {
+      throw new ApiError('stream', data)
+    }
+    const event = readMessageEvent(payload)
+    if (!event) {
+      continue
+    }
+    yield event
+    if (event.type === 'message_stop') {
+      return
+    }
+  }
+  // 服务端没有提供错误内容时保持为空，不推测断流原因。
+  throw new ApiError('interrupted', '')
+}
+
+/** 记忆/压缩后端地址：空串 = 同源 /api（dev 代理 / prod nginx 反代）；file:// 场景在设置里覆盖 */
+const AGENT_API_ORIGIN = __AGENT_API_ORIGIN__
+
+const readAgentApiOverride = (): string => {
+  try {
+    return localStorage.getItem('chat-demo:agent-api') ?? ''
+  } catch {
+    return ''
+  }
+}
+
+const agentApiOrigin = () => (readAgentApiOverride() || AGENT_API_ORIGIN).replace(/\/+$/, '')
+
+/** 记忆/压缩后端地址（供 complete 通知等直接使用） */
+export const getAgentApiOrigin = agentApiOrigin
+
+/** 发送给后端的聊天请求信封 */
+export type ChatStreamInput = {
+  apiKey?: string
+  sessionId: string
+  request: CreateMessageRequest
+  memory?: { enabled?: boolean; read?: boolean; write?: boolean }
+  compression?: { enabled?: boolean; thresholdTokens?: number }
+  agent?: {
+    enabled?: boolean
+    ssh?: {
+      host: string
+      port: number
+      username: string
+      password?: string
+      privateKey?: string
+      remotePath: string
+    }
+  }
+}
+
+const readStreamStatus = (payload: unknown): number | undefined => {
+  if (typeof payload === 'object' && payload !== null && 'error' in payload) {
+    const err = (payload as { error: unknown }).error
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'status' in err &&
+      typeof (err as { status: unknown }).status === 'number'
+    ) {
+      return (err as { status: number }).status
+    }
+  }
+  return undefined
+}
+
+/**
+ * POST 后端 /api/chat：后端做记忆召回与上下文压缩后转发 DeepSeek，事件形状与直连一致。
+ * 后端追加的事件（memory_recall、context_compressed 等）由 parseEvent 解析，
+ * 未识别事件静默丢弃，旧客户端兼容。
+ */
+export async function* streamChat(
+  input: ChatStreamInput,
+  signal: AbortSignal
+): AsyncGenerator<MessageStreamEvent> {
+  const response = await request(`${agentApiOrigin()}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+    signal,
+  })
+  const contentType = response.headers.get('Content-Type') ?? ''
+  if (!response.body || !contentType.includes('text/event-stream')) {
+    throw await readErrorResponse(response, 'protocol', '')
+  }
+  for await (const { event: eventName, data } of readServerSentEvents(response.body, signal)) {
+    let payload: unknown
+    try {
+      payload = JSON.parse(data)
+    } catch {
+      if (eventName !== 'error') {
+        continue
+      }
+    }
+    if (isErrorBody(payload)) {
+      throw new ApiError('stream', payload.error.message, readStreamStatus(payload))
     }
     if (eventName === 'error') {
       throw new ApiError('stream', data)

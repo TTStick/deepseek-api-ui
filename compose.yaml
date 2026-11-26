@@ -1,0 +1,236 @@
+name: myagent
+
+# Honcho api 与 deriver 的共用环境：LLM 全部走 DeepSeek（OpenAI 兼容），
+# Structured Outputs 降级为 json_object；批次门槛 0 = 写入后立即推导
+x-honcho-env: &honcho-env
+  DB_CONNECTION_URI: postgresql+psycopg://postgres:postgres@honcho-db:5432/postgres
+  CACHE_URL: redis://honcho-redis:6379/0?suppress=true
+  CACHE_ENABLED: "true"
+  AUTH_USE_AUTH: "false"
+  EMBED_MESSAGES: "false"
+  LOG_LEVEL: INFO
+  LLM_OPENAI_API_KEY: ${DEEPSEEK_API_KEY:-}
+  LLM_OPENAI_BASE_URL: ${HONCHO_LLM_BASE_URL:-https://api.deepseek.com/v1}
+  DERIVER_MODEL_CONFIG__TRANSPORT: openai
+  DERIVER_MODEL_CONFIG__MODEL: deepseek-chat
+  DERIVER_MODEL_CONFIG__STRUCTURED_OUTPUT_MODE: json_object
+  DIALECTIC_MODEL_CONFIG__TRANSPORT: openai
+  DIALECTIC_MODEL_CONFIG__MODEL: deepseek-chat
+  DIALECTIC_MODEL_CONFIG__STRUCTURED_OUTPUT_MODE: json_object
+  PEER_CARD_MODEL_CONFIG__TRANSPORT: openai
+  PEER_CARD_MODEL_CONFIG__MODEL: deepseek-chat
+  PEER_CARD_MODEL_CONFIG__STRUCTURED_OUTPUT_MODE: json_object
+  SUMMARY_MODEL_CONFIG__TRANSPORT: openai
+  SUMMARY_MODEL_CONFIG__MODEL: deepseek-chat
+  SUMMARY_MODEL_CONFIG__STRUCTURED_OUTPUT_MODE: json_object
+  DERIVER_REPRESENTATION_BATCH_WORK_UNIT_TARGET_TOKENS: "0"
+
+services:
+  # 默认服务：开发模式，源码热更新，浏览器打开 http://localhost:8090
+  web:
+    build:
+      context: .
+      target: dev
+      args:
+        PNPM_VERSION: "12.6.0"
+        # 网络慢时走本机代理：根 .env 设 DOCKER_BUILD_PROXY=http://host.docker.internal:10808
+        HTTP_PROXY: ${DOCKER_BUILD_PROXY:-}
+        HTTPS_PROXY: ${DOCKER_BUILD_PROXY:-}
+    image: myagent-dev:local
+    init: true
+    ports:
+      - "${DEV_PORT:-8090}:8090"
+    environment:
+      # 容器内必须监听 0.0.0.0，rspack.config.ts 会读取该变量
+      DEV_SERVER_HOST: 0.0.0.0
+      # WSL bind mount 上 inotify 事件可能不稳定，用轮询保证热更新必达
+      DEV_WATCH_POLL: "1000"
+      # 容器内 /api 代理指向 server 服务
+      AGENT_API_TARGET: http://server:3000
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      # 依赖放在命名卷里，避免宿主机（或 Windows）目录覆盖容器内 node_modules
+      - node_modules:/app/node_modules
+
+  # 记忆/压缩后端：接收前端的可见路径快照，做自我检索注入与上下文压缩后转发 DeepSeek
+  server:
+    build:
+      context: ./server
+      args:
+        HTTP_PROXY: ${DOCKER_BUILD_PROXY:-}
+        HTTPS_PROXY: ${DOCKER_BUILD_PROXY:-}
+    image: myagent-server:local
+    init: true
+    ports:
+      # 仅绑定本机，便于 file:// 场景直连调试
+      - "127.0.0.1:${SERVER_PORT:-3000}:3000"
+    environment:
+      PORT: "3000"
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_API_ORIGIN: ${DEEPSEEK_API_ORIGIN:-https://api.deepseek.com}
+      HONCHO_BASE_URL: ${HONCHO_BASE_URL:-http://honcho-api:8000}
+      HONCHO_API_KEY: ${HONCHO_API_KEY:-local}
+      HONCHO_ENVIRONMENT: ${HONCHO_ENVIRONMENT:-local}
+      # 初始访问密码（可选）：仅首次启动、尚未在界面设置密码时生效
+      ACCESS_PASSWORD: ${ACCESS_PASSWORD:-}
+      # 公网部署：true 时未设置访问密码会拒绝所有业务接口
+      REQUIRE_AUTH: ${REQUIRE_AUTH:-false}
+      # 允许跨域访问的来源（手机 WebView 默认来源已内置；公网 Web 跨域部署时追加）
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # 容器只经 nginx 暴露，且 nginx 会覆写 X-Forwarded-For，因此默认信任它做按 IP 限速；
+      # 若直接暴露 server 端口，请设为 false（改为按 TCP 对端地址限速）。
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      # SSH 工具默认禁止连内网/回环地址（防 SSRF）；局域网自用可设 true
+      SSH_ALLOW_PRIVATE_HOSTS: ${SSH_ALLOW_PRIVATE_HOSTS:-false}
+      # 单客户端每分钟聊天/压缩请求上限，防止共享口令刷服务端 LLM 额度
+      CHAT_RATE_LIMIT_PER_MINUTE: ${CHAT_RATE_LIMIT_PER_MINUTE:-30}
+      # 允许请求的模型白名单（逗号分隔）
+      ALLOWED_MODELS: ${ALLOWED_MODELS:-deepseek-flash,deepseek-v4-pro}
+    volumes:
+      - ./server/src:/app/src
+      - ./server/test:/app/test
+      - ./server/scripts:/app/scripts
+      # 每会话 agent 工作区（持久化卷）
+      - myagent_workspaces:/app/workspaces
+      # 访问密码哈希与会话密钥（持久化卷）
+      - myagent_data:/app/data
+    restart: unless-stopped
+
+  # 生产预览：docker compose --profile prod up -d --build，浏览器打开 http://localhost:8080
+  web-prod:
+    profiles: ["prod"]
+    build:
+      context: .
+      target: prod
+      args:
+        HTTP_PROXY: ${DOCKER_BUILD_PROXY:-}
+        HTTPS_PROXY: ${DOCKER_BUILD_PROXY:-}
+    image: myagent:local
+    init: true
+    ports:
+      # 公网部署建议 PROD_BIND=127.0.0.1，只让前置 Caddy/Nginx 暴露 80/443
+      - "${PROD_BIND:-0.0.0.0}:${PROD_PORT:-8080}:80"
+    restart: unless-stopped
+
+  # 公网 HTTPS 入口（可选）：docker compose --profile prod --profile public up -d --build
+  # 需要 .env 设置 PUBLIC_DOMAIN=你的域名、ACME_EMAIL=邮箱；Caddy 自动申请 Let's Encrypt 证书
+  caddy:
+    profiles: ["public"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web-prod
+
+  # -- Honcho 自托管记忆后端（docker compose --profile honcho up -d --build）---------
+  # 说明见 DOCKER.md：LLM 用 DeepSeek（OpenAI 兼容），embedding 默认关闭。
+  # DeepSeek 不支持 OpenAI Structured Outputs，各模型配置统一用 json_object 模式。
+  honcho-api:
+    profiles: ["honcho"]
+    build:
+      # 官方仓库固定 commit；GitHub 拉不动时把仓库裁剪放进 vendor/honcho 并改为本地 context
+      context: https://github.com/plastic-labs/honcho.git#894b88321872e01702a1aa638ddfdde6ad60f173
+      dockerfile: Dockerfile
+      args:
+        INSTALL_LANCEDB: "false"
+        INSTALL_SURPRISAL: "false"
+    image: myagent-honcho:local
+    entrypoint: ["sh", "docker/entrypoint.sh"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/app/.venv/bin/python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    depends_on:
+      honcho-db:
+        condition: service_healthy
+      honcho-redis:
+        condition: service_healthy
+    environment: *honcho-env
+    restart: unless-stopped
+
+  honcho-deriver:
+    profiles: ["honcho"]
+    build:
+      context: https://github.com/plastic-labs/honcho.git#894b88321872e01702a1aa638ddfdde6ad60f173
+      dockerfile: Dockerfile
+      args:
+        INSTALL_LANCEDB: "false"
+        INSTALL_SURPRISAL: "false"
+    image: myagent-honcho:local
+    entrypoint: ["/app/.venv/bin/python", "-m", "src.deriver"]
+    depends_on:
+      honcho-api:
+        condition: service_healthy
+      honcho-db:
+        condition: service_healthy
+      honcho-redis:
+        condition: service_healthy
+    environment: *honcho-env
+    restart: unless-stopped
+
+  honcho-db:
+    profiles: ["honcho"]
+    image: pgvector/pgvector:pg15
+    restart: unless-stopped
+    command: ["postgres", "-c", "max_connections=200"]
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ./server/honcho/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - honcho-pgdata:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  honcho-redis:
+    profiles: ["honcho"]
+    image: redis:8.2
+    restart: unless-stopped
+    volumes:
+      - honcho-redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  node_modules:
+    name: myagent_node_modules
+  honcho-pgdata:
+    name: myagent_honcho_pgdata
+  honcho-redis-data:
+    name: myagent_honcho_redis
+  myagent_workspaces:
+    name: myagent_workspaces
+  myagent_data:
+    name: myagent_data
+  caddy_data:
+    name: myagent_caddy_data
+  caddy_config:
+    name: myagent_caddy_config

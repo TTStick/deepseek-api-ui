@@ -1,0 +1,22 @@
+# 依赖与构建产物（容器内会重新安装/构建）
+node_modules
+dist
+build
+.pnpm-store
+.cache
+tmp
+
+# 版本控制与 CI
+.git
+.github
+
+# 本地环境与日志
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# 编辑器
+.vscode
+.idea

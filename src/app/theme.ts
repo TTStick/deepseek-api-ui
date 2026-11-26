@@ -1,7 +1,19 @@
 import { useSyncExternalStore } from 'react'
-import { useSettings, type ThemePreference } from '../services/settings.js'
+import { useSettings, type FontSize, type ThemePreference } from '../services/settings.js'
 
 export type Theme = 'light' | 'dark'
+
+/** 字体大小 → 根元素 zoom（整体缩放布局与字号；Firefox <126 不支持 zoom，无副作用降级） */
+const FONT_SIZE_ZOOM: Record<FontSize, string> = {
+  small: '0.9',
+  medium: '1',
+  large: '1.1',
+  xlarge: '1.25',
+}
+
+const applyFontSize = (fontSize: FontSize) => {
+  document.documentElement.style.zoom = FONT_SIZE_ZOOM[fontSize]
+}
 
 const query = window.matchMedia('(prefers-color-scheme: dark)')
 
@@ -51,6 +63,15 @@ const applyTheme = (theme: Theme) => {
 }
 
 let appliedTheme: Theme | null = null
+let appliedFontSize: FontSize | null = null
+
+const syncFontSize = () => {
+  const fontSize = useSettings.getState().fontSize
+  if (fontSize !== appliedFontSize) {
+    appliedFontSize = fontSize
+    applyFontSize(fontSize)
+  }
+}
 
 const syncTheme = () => {
   const theme = resolveTheme(useSettings.getState().themePreference, getOsTheme())
@@ -63,9 +84,11 @@ const syncTheme = () => {
 /** 首屏渲染前同步应用一次，之后随主题设置与系统深浅色变化更新 */
 export const setupTheme = () => {
   syncTheme()
+  syncFontSize()
   if (document.readyState !== 'complete') {
     window.addEventListener('load', syncPageBackground, { once: true })
   }
   query.addEventListener('change', syncTheme)
   useSettings.subscribe(syncTheme)
+  useSettings.subscribe(syncFontSize)
 }

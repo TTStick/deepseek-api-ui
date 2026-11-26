@@ -1,0 +1,6 @@
+# pnpm 12 的依赖构建脚本批准
+# esbuild：postinstall 校验平台二进制；cpu-features/ssh2：原生模块编译（镜像已装 build-essential）
+allowBuilds:
+  esbuild: true
+  cpu-features: true
+  ssh2: true

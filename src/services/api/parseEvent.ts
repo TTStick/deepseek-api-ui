@@ -224,6 +224,54 @@ export const readMessageEvent = (value: unknown): MessageStreamEvent | null => {
       } as MessageStreamEvent
     case 'message_stop':
       break
+    case 'memory_recall': {
+      const section = (v: unknown) =>
+        isRecord(v) && isString(v.title) && isString(v.content)
+          ? { title: v.title, content: v.content }
+          : null
+      return {
+        type: 'memory_recall',
+        injected: value.injected === true,
+        sections: Array.isArray(value.sections) ? value.sections.map(section).filter((s) => s !== null) : [],
+        dialectic: isOptionalString(value.dialectic) ? value.dialectic : '',
+      } as MessageStreamEvent
+    }
+    case 'context_compressed': {
+      const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+      return {
+        type: 'context_compressed',
+        summary: isString(value.summary) ? value.summary : '',
+        archiveRounds: num(value.archiveRounds),
+        estimatedBefore: num(value.estimatedBefore),
+        estimatedAfter: num(value.estimatedAfter),
+        fallback: value.fallback === true,
+        skipped: isOptionalString(value.skipped) ? value.skipped : undefined,
+      } as MessageStreamEvent
+    }
+    case 'agent_tool':
+      return {
+        type: 'agent_tool',
+        toolUseId: isString(value.toolUseId) ? value.toolUseId : '',
+        name: isString(value.name) ? value.name : '',
+        input: value.input,
+        status: 'running',
+      } as MessageStreamEvent
+    case 'agent_tool_result':
+      return {
+        type: 'agent_tool_result',
+        toolUseId: isString(value.toolUseId) ? value.toolUseId : '',
+        name: isString(value.name) ? value.name : '',
+        output: isString(value.output) ? value.output : '',
+        isError: value.isError === true,
+        status: 'done',
+      } as MessageStreamEvent
+    case 'agent_artifact':
+      return {
+        type: 'agent_artifact',
+        path: isString(value.path) ? value.path : '',
+        action: value.action === 'updated' || value.action === 'generated' ? value.action : 'created',
+        size: typeof value.size === 'number' && Number.isFinite(value.size) ? value.size : undefined,
+      } as MessageStreamEvent
     default:
       return null
   }

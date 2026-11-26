@@ -1,0 +1,46 @@
+.stats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.tokenText {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-text-secondary, #666);
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.ring {
+  display: block;
+}
+
+.ringTrack {
+  fill: none;
+  stroke: var(--dsw-alias-border-strong, rgba(0, 0, 0, 0.12));
+  stroke-width: 3;
+}
+
+.ringFill {
+  fill: none;
+  stroke: var(--dsw-alias-brand, #4d6bfe);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke 0.2s, stroke-dashoffset 0.3s;
+}
+
+.ring[data-tone='warning'] .ringFill {
+  stroke: #f0a020;
+}
+
+.ring[data-tone='danger'] .ringFill {
+  stroke: var(--dsw-alias-state-error-primary, #d93025);
+}
+
+.menuIcon {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+}

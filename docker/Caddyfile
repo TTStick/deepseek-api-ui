@@ -1,0 +1,9 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# 公网域名：Caddy 自动申请/续期 Let's Encrypt 证书，并 301 跳转 HTTPS
+{$PUBLIC_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web-prod:80
+}

@@ -194,7 +194,7 @@ export const canContinueReply = (reply: AssistantMessage): boolean => {
  * 已结束或停止且有回答文本的回复才放进上下文；被安全拒绝的轮次不回传。
  * 服务端模板提示不进入上下文。
  */
-const isUsableReply = (message: Message): message is AssistantMessage =>
+export const isUsableReply = (message: Message): message is AssistantMessage =>
   message.role === 'assistant' &&
   (message.status === 'done' || message.status === 'stopped') &&
   message.stopReason !== 'refusal' &&
@@ -283,12 +283,22 @@ const toAssistantParam = (
   }
 }
 
-/** 历史中会进入请求上下文的轮次：提问后紧跟可用回答的才保留 */
-export const getContextRounds = (history: Message[]): [UserMessage, AssistantMessage][] => {
+/** 历史中会进入请求上下文的轮次：提问后紧跟可用回答的才保留；archivedRounds 为已压缩归档的轮数 */
+export const getContextRounds = (
+  history: Message[],
+  archivedRounds = 0
+): [UserMessage, AssistantMessage][] => {
   const rounds: [UserMessage, AssistantMessage][] = []
+  let skipped = 0
   for (let i = 0; i + 1 < history.length; i++) {
     const [user, reply] = [history[i], history[i + 1]]
     if (user.role === 'user' && isUsableReply(reply)) {
+      if (skipped < archivedRounds) {
+        // 已归档的轮次不再进入请求上下文（展示层仍完整可见）
+        skipped += 1
+        i++
+        continue
+      }
       rounds.push([user, reply])
       i++
     }
@@ -296,18 +306,49 @@ export const getContextRounds = (history: Message[]): [UserMessage, AssistantMes
   return rounds
 }
 
+/** 摘掉摘要行的围栏声明，取摘要正文用于展示 */
+export const summaryDisplayText = (summaryRow: string): string => {
+  const index = summaryRow.indexOf('## ')
+  return index === -1 ? summaryRow : summaryRow.slice(index)
+}
+
+/** 手动压缩的快照：摘要行 + 全部上下文轮次（不含本轮提问与续写段） */
+export const toCompressMessages = (
+  history: Message[],
+  compression?: { summaryRow: string; archivedRounds: number }
+): MessageParam[] => {
+  const messages: MessageParam[] = []
+  if (compression?.summaryRow) {
+    messages.push({ role: 'user', content: compression.summaryRow })
+  }
+  let previousReminder: string | undefined
+  for (const [user, reply] of getContextRounds(history, compression?.archivedRounds ?? 0)) {
+    if (reply.latestReminder && reply.latestReminder !== previousReminder) {
+      messages.push({ role: 'latest_reminder', content: reply.latestReminder })
+      previousReminder = reply.latestReminder
+    }
+    messages.push(toUserParam(user), toAssistantParam(reply))
+  }
+  return messages
+}
+
 /**
  * 把会话转成请求的 messages：只保留「提问 + 有回答的回复」成对的轮次，最后接上本轮提问。
  * 失败或没有回答的轮次不进上下文。续写时末尾再带上本轮 assistant。
+ * 压缩后：已归档轮次跳过，摘要行作为首条消息（role user 的参考材料）注入。
  */
 export const toRequestMessages = (
   history: Message[],
   question: UserMessage,
   prefix?: AssistantMessage,
   thinking = prefix?.thinking ?? false,
-  latestReminder?: string
+  latestReminder?: string,
+  compression?: { summaryRow: string; archivedRounds: number }
 ): MessageParam[] => {
   const messages: MessageParam[] = []
+  if (compression?.summaryRow) {
+    messages.push({ role: 'user', content: compression.summaryRow })
+  }
   let previousReminder: string | undefined
   const appendReminder = (reminder: string | undefined) => {
     // 仅在当前分支首次出现或内容变化时插入快照；缺少快照的消息保持原有内容。
@@ -316,7 +357,7 @@ export const toRequestMessages = (
       previousReminder = reminder
     }
   }
-  for (const [user, reply] of getContextRounds(history)) {
+  for (const [user, reply] of getContextRounds(history, compression?.archivedRounds ?? 0)) {
     // 历史提问没有文字、附件也都没有 serverId 时，提问为空，连同回答一起省略。
     if (!user.content && toFileBlocks(user.files).length === 0) {
       continue

@@ -1,6 +1,7 @@
 import { useTranslate } from '../../i18n/index.js'
 import clsx from 'clsx'
 import { memo, useEffect, useState, type ReactNode } from 'react'
+import { useSettings } from '../../services/settings.js'
 import {
   IconBrowseOutline16,
   IconBrowseWarningOutline16,
@@ -65,7 +66,9 @@ export const ReplyArea = memo(function ReplyArea({
   hasResponse: boolean
 }) {
   useTranslate()
-  const [open, setOpen] = useState(true)
+  // 「自动折叠思考内容」开启时默认收起，点击标题可展开；流式中的思考同样收起，标题仍有状态提示
+  const collapseThinking = useSettings((state) => state.collapseThinking)
+  const [open, setOpen] = useState(!collapseThinking)
   const titleActive = streaming && !hasResponse
   useTicker(titleActive, 1000)
   if (view.steps.length === 0 && !(message.thinking && streaming)) {

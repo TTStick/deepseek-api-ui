@@ -1,13 +1,15 @@
 import { useTranslate } from '../../i18n/index.js'
 import clsx from 'clsx'
-import { memo } from 'react'
-import { IconRefreshOutline16, IconWarningOutline16 } from '../base/icons.js'
+import { memo, useState } from 'react'
+import { IconChevronDownOutline14, IconChevronRightOutline14, IconRefreshOutline16, IconRewindOutline16, IconWarningOutline16 } from '../base/icons.js'
+import { AgentActivity } from '../agent/AgentActivity.js'
 import { describeReply } from '../../services/chat/describe.js'
 import { canContinueReply } from '../../services/chat/reply.js'
 import { continueReply, regenerateReply } from '../../services/chat/store.js'
 import { stopReadAloud } from '../../services/speech/readAloud.js'
 import type { AssistantMessage as AssistantMessageType } from '../../services/chat/types.js'
 import { openSettings } from '../settings/settingsDialogState.js'
+import { useSettings } from '../../services/settings.js'
 import { IconButton } from '../base/IconButton.js'
 import { Button } from '../base/Button.js'
 import { Markdown } from '../markdown/Markdown.js'
@@ -34,6 +36,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   busy,
   versions,
   onSelectVersion,
+  onRewind,
 }: {
   sessionId: string
   message: AssistantMessageType
@@ -42,11 +45,15 @@ export const AssistantMessage = memo(function AssistantMessage({
   busy: boolean
   versions: MessageVersions
   onSelectVersion: SelectMessageVersion
+  onRewind: (message: AssistantMessageType) => void
 }) {
   const t = useTranslate()
   const view = useReplyView(message, streaming)
   const panelEntry = useSearchPanel((state) => state.entry)
   const notice = streaming ? null : describeReply(message)
+  const [recallOpen, setRecallOpen] = useState(false)
+  const showRecall = useSettings((state) => state.showRecalledMemory)
+  const recall = message.recalledMemory
   // 安全拒绝：已下发的思考与正文按协议丢弃，只显示模板答复。
   const refused = message.stopReason === 'refusal'
   const answer = refused ? null : view.answer
@@ -66,6 +73,38 @@ export const AssistantMessage = memo(function AssistantMessage({
           hasResponse={!!responseText}
         />
       )}
+      {showRecall && recall?.injected ? (
+        <div className={styles.recallPanel}>
+          <button
+            type="button"
+            className={styles.recallToggle}
+            aria-expanded={recallOpen}
+            onClick={() => setRecallOpen((open) => !open)}
+          >
+            {recallOpen ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />}
+            {t('memoryRecalledIndicator', { count: recall.sections.length })}
+          </button>
+          {recallOpen ? (
+            <div className={styles.recallBody}>
+              {recall.sections.map((section) => (
+                <div key={section.title} className={styles.recallSection}>
+                  <div className={styles.recallSectionTitle}>{section.title}</div>
+                  {section.content}
+                </div>
+              ))}
+              {recall.dialectic ? (
+                <div className={styles.recallSection}>
+                  <div className={styles.recallSectionTitle}>{t('memoryDialecticTitle')}</div>
+                  {recall.dialectic}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {message.agentEvents && message.agentEvents.length > 0 ? (
+        <AgentActivity events={message.agentEvents} sessionId={sessionId} />
+      ) : null}
       {answer ? (
         <Markdown
           className="ds-assistant-message-main-content"
@@ -156,6 +195,15 @@ export const AssistantMessage = memo(function AssistantMessage({
                 regenerateReply(sessionId, message.id)
               }}
             />
+            {!isLast ? (
+              <IconButton
+                icon={<IconRewindOutline16 />}
+                tooltip={t('rewindAction')}
+                tooltipPlacement="bottom"
+                disabled={busy}
+                onClick={() => onRewind(message)}
+              />
+            ) : null}
           </div>
           {isLast && canContinueReply(message) ? (
             <Button

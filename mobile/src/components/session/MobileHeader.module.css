@@ -1,0 +1,84 @@
+.header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: 60px;
+  padding: 12px 10px 4px;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--dsw-font-s-strong-14);
+  color: var(--dsw-alias-label-primary);
+}
+
+[data-android] .title {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0 12px 0 9.2111px;
+  position: relative;
+  top: 0.8444px;
+  font: 500 15px/17.422px var(--dsw-font-family);
+}
+
+.statsSlot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* 会话页有统计项时，朗读按钮紧跟统计项，不再单独右推 */
+[data-android] .statsSlot + .sound {
+  margin-left: 2px;
+}
+
+[data-android] .titleText {
+  position: relative;
+  top: 0.235px;
+}
+
+[data-android] .header {
+  height: 52px;
+  padding: 0 0 4.4444px 3.2889px;
+}
+
+[data-android] .menu svg {
+  width: 24px;
+  height: 24px;
+  transform: translateY(0.5px);
+}
+
+[data-android] .sound {
+  margin-left: auto;
+  margin-right: 4.5px;
+
+  svg {
+    width: 20px;
+    height: 20px;
+    transform: translate(-0.9px, 0.9px);
+  }
+
+  svg[data-sound-state='active'] {
+    transform: translate(-1.26px, 0.54px) scale(1.08, 1.13);
+  }
+}
+
+[data-android] .sound[data-read-state='loading'] {
+  color: #d4d4d4;
+}
+
+[data-android] .sound[data-read-state='playing'] {
+  color: #426efe;
+}
+
+[data-android] .newChat svg {
+  width: 22px;
+  height: 22px;
+}

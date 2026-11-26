@@ -80,13 +80,34 @@ export const createConfig = ({
       scriptLoading: 'defer',
       meta: { 'application-version': version },
     }),
-    new rspack.DefinePlugin({ __API_ORIGIN__: JSON.stringify(apiOrigin) }),
+    new rspack.DefinePlugin({
+      __API_ORIGIN__: JSON.stringify(apiOrigin),
+      // 记忆/压缩后端地址：空串 = 同源 /api（dev 代理 / prod nginx 反代）
+      __AGENT_API_ORIGIN__: JSON.stringify(process.env.AGENT_API_ORIGIN ?? ''),
+    }),
     new rspack.CopyRspackPlugin({
       patterns: [{ from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' }],
     }),
   ],
   performance: { hints: false },
-  devServer: { port: 8090, ...devServer },
+  // 容器开发时文件事件可能无法穿透 bind mount，可用 DEV_WATCH_POLL=1000 开启轮询
+  watchOptions: process.env.DEV_WATCH_POLL
+    ? { poll: Number(process.env.DEV_WATCH_POLL) }
+    : undefined,
+  devServer: {
+    port: 8090,
+    // 容器内开发需监听 0.0.0.0；本地开发不设置时保持默认的 localhost
+    host: process.env.DEV_SERVER_HOST || undefined,
+    // /api 转发到记忆/压缩后端；容器内指向 server 服务，本地开发指向 3000
+    proxy: [
+      {
+        context: ['/api'],
+        target: process.env.AGENT_API_TARGET || 'http://localhost:3000',
+        changeOrigin: false,
+      },
+    ],
+    ...devServer,
+  },
 })
 
 // eslint-disable-next-line import/no-default-export

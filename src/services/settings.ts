@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { TtsVoice } from './api/speech.js'
+import type { ChatModel } from './api/types.js'
 import { normalizeLocation, type UserLocation } from './location.js'
 
 export type Locale = 'zh-CN' | 'en-US'
@@ -17,7 +18,21 @@ type Settings = {
   thinking: boolean
   search: boolean
   siderCollapsed: boolean
+  /** 自我检索开关：开启后每轮请求会注入后端召回的长期记忆 */
+  memoryEnabled: boolean
+  /** 是否在回答里展示「本轮召回的记忆」详情面板 */
+  showRecalledMemory: boolean
+  /** 上下文压缩开关 */
+  compressionEnabled: boolean
+  /** 聊天模型：默认 deepseek-flash（快），可切换 deepseek-v4-pro（更强） */
+  model: ChatModel
+  /** 界面字体大小：小 / 标准 / 大 / 特大 */
+  fontSize: FontSize
+  /** 思考内容自动折叠：回答中的思考过程默认收起，点击标题可展开 */
+  collapseThinking: boolean
 }
+
+export type FontSize = 'small' | 'medium' | 'large' | 'xlarge'
 
 const KEYS = {
   apiKey: 'chat-demo:api-key',
@@ -28,6 +43,12 @@ const KEYS = {
   thinking: 'chat-demo:thinking',
   search: 'chat-demo:search',
   siderCollapsed: 'chat-demo:sider-collapsed',
+  memoryEnabled: 'chat-demo:memory-enabled',
+  showRecalledMemory: 'chat-demo:show-recalled-memory',
+  compressionEnabled: 'chat-demo:compression-enabled',
+  model: 'chat-demo:model',
+  fontSize: 'chat-demo:font-size',
+  collapseThinking: 'chat-demo:collapse-thinking',
 } as const
 
 const read = (key: string) => {
@@ -87,6 +108,12 @@ const initialThemePreference = (): ThemePreference => {
 /** 未保存过时使用服务端默认音色 stella（海星） */
 const initialTtsVoice = (): TtsVoice => (read(KEYS.ttsVoice) === 'tide' ? 'tide' : 'stella')
 
+/** 未保存过时用标准字号 */
+const initialFontSize = (): FontSize => {
+  const saved = read(KEYS.fontSize)
+  return saved === 'small' || saved === 'large' || saved === 'xlarge' ? saved : 'medium'
+}
+
 export const useSettings = create<Settings>(() => ({
   apiKey: read(KEYS.apiKey),
   locale: initialLocale(),
@@ -96,6 +123,12 @@ export const useSettings = create<Settings>(() => ({
   thinking: read(KEYS.thinking) === 'true',
   search: read(KEYS.search) === 'true',
   siderCollapsed: read(KEYS.siderCollapsed) === 'true',
+  memoryEnabled: read(KEYS.memoryEnabled) === 'true',
+  showRecalledMemory: read(KEYS.showRecalledMemory) !== 'false',
+  compressionEnabled: read(KEYS.compressionEnabled) !== 'false',
+  model: read(KEYS.model) === 'deepseek-v4-pro' ? 'deepseek-v4-pro' : 'deepseek-flash',
+  fontSize: initialFontSize(),
+  collapseThinking: read(KEYS.collapseThinking) === 'true',
 }))
 
 export const setLocale = (locale: Locale) => {
@@ -137,4 +170,34 @@ export const setSearch = (search: boolean) => {
 export const setSiderCollapsed = (siderCollapsed: boolean) => {
   write(KEYS.siderCollapsed, String(siderCollapsed))
   useSettings.setState({ siderCollapsed })
+}
+
+export const setMemoryEnabled = (memoryEnabled: boolean) => {
+  write(KEYS.memoryEnabled, String(memoryEnabled))
+  useSettings.setState({ memoryEnabled })
+}
+
+export const setShowRecalledMemory = (showRecalledMemory: boolean) => {
+  write(KEYS.showRecalledMemory, String(showRecalledMemory))
+  useSettings.setState({ showRecalledMemory })
+}
+
+export const setCompressionEnabled = (compressionEnabled: boolean) => {
+  write(KEYS.compressionEnabled, String(compressionEnabled))
+  useSettings.setState({ compressionEnabled })
+}
+
+export const setModel = (model: ChatModel) => {
+  write(KEYS.model, model)
+  useSettings.setState({ model })
+}
+
+export const setFontSize = (fontSize: FontSize) => {
+  write(KEYS.fontSize, fontSize)
+  useSettings.setState({ fontSize })
+}
+
+export const setCollapseThinking = (collapseThinking: boolean) => {
+  write(KEYS.collapseThinking, String(collapseThinking))
+  useSettings.setState({ collapseThinking })
 }

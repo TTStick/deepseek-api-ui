@@ -1,0 +1,38 @@
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--border-strong, rgba(0, 0, 0, 0.18));
+  transition: background 0.15s;
+}
+
+.switch[aria-pressed='true'] .track {
+  background: var(--brand, #4d6bfe);
+}
+
+.thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.15s;
+}
+
+.switch[aria-pressed='true'] .thumb {
+  left: 18px;
+}

@@ -1,12 +1,18 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useIsMobile } from '../../app/viewport.js'
 import {
   buildMessageVersions,
   getVisibleMessages,
   type MessageVersions,
 } from '../../services/chat/branches.js'
-import { selectMessageVersion } from '../../services/chat/store.js'
+import { isUsableReply, summaryDisplayText } from '../../services/chat/reply.js'
+import { rewindSession, selectMessageVersion } from '../../services/chat/store.js'
 import type { Session } from '../../services/chat/types.js'
+import { useTranslate } from '../../i18n/index.js'
+import { IconChevronDownOutline14, IconChevronRightOutline14 } from '../base/icons.js'
+import { Button } from '../base/Button.js'
+import { Modal } from '../base/Modal.js'
+import { showToast } from '../base/toastState.js'
 import { closeSearchPanel } from '../search/searchPanelState.js'
 import { AssistantMessage } from './AssistantMessage.js'
 import { ScrollToBottomContext } from './scrollContext.js'
@@ -43,12 +49,31 @@ export const MessageList = ({
   footer: React.ReactNode
 }) => {
   const isMobile = useIsMobile()
+  const t = useTranslate()
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(true)
   const scrollTopRef = useRef(0)
   const restoreScrollRef = useRef<{ messageId: string; top: number } | null>(null)
   const messages = getVisibleMessages(session)
+  /** 压缩分隔条位置：已归档轮数之后的第一条消息下标；无压缩为 -1 */
+  const compressionBoundary = useMemo(() => {
+    const archived = session.compression?.archivedRounds ?? 0
+    if (archived <= 0) {
+      return -1
+    }
+    let rounds = 0
+    for (let i = 0; i + 1 < messages.length; i++) {
+      if (messages[i].role === 'user' && isUsableReply(messages[i + 1])) {
+        rounds += 1
+        if (rounds === archived) {
+          return i + 2
+        }
+        i += 1
+      }
+    }
+    return -1
+  }, [session.compression?.archivedRounds, messages])
   const [previousVersions, setPreviousVersions] = useState(() =>
     buildMessageVersions(session, new Map())
   )
@@ -141,41 +166,115 @@ export const MessageList = ({
 
   const lastIndex = messages.length - 1
   const uploadRetryId = getUploadRetryId(messages, streaming)
+  const [dividerOpen, setDividerOpen] = useState(false)
+  const [rewindTarget, setRewindTarget] = useState<Message | null>(null)
+  const rewindCount = rewindTarget
+    ? session.messages.length - session.messages.findIndex((message) => message.id === rewindTarget.id) - 1
+    : 0
   return (
     <ScrollToBottomContext.Provider value={scrollToBottom}>
       <div ref={isMobile ? undefined : scrollRef} className={styles.container}>
         <div ref={isMobile ? scrollRef : undefined} className={styles.scroll}>
           <div ref={contentRef} className={styles.column}>
-            {messages.map((message, index) =>
-              message.role === 'user' ? (
-                <UserMessage
-                  key={message.id}
-                  sessionId={session.id}
-                  message={message}
-                  retryUploadId={uploadRetryId}
-                  isFirst={index === 0}
-                  isLast={index === lastIndex || index === lastIndex - 1}
-                  busy={streaming}
-                  versions={versions.get(message.id) ?? EMPTY_VERSIONS}
-                  onSelectVersion={selectVersion}
-                />
-              ) : (
-                <AssistantMessage
-                  key={message.id}
-                  sessionId={session.id}
-                  message={message}
-                  isLast={index === lastIndex}
-                  streaming={streaming && index === lastIndex}
-                  busy={streaming}
-                  versions={versions.get(message.id) ?? EMPTY_VERSIONS}
-                  onSelectVersion={selectVersion}
-                />
-              )
-            )}
+            {messages.map((message, index) => (
+              <Fragment key={message.id}>
+                {index === compressionBoundary && session.compression ? (
+                  <CompressionDivider
+                    session={session}
+                    open={dividerOpen}
+                    onToggle={() => setDividerOpen((open) => !open)}
+                  />
+                ) : null}
+                {message.role === 'user' ? (
+                  <UserMessage
+                    key={message.id}
+                    sessionId={session.id}
+                    message={message}
+                    retryUploadId={uploadRetryId}
+                    isFirst={index === 0}
+                    isLast={index === lastIndex || index === lastIndex - 1}
+                    busy={streaming}
+                    versions={versions.get(message.id) ?? EMPTY_VERSIONS}
+                    onSelectVersion={selectVersion}
+                    onRewind={setRewindTarget}
+                  />
+                ) : (
+                  <AssistantMessage
+                    key={message.id}
+                    sessionId={session.id}
+                    message={message}
+                    isLast={index === lastIndex}
+                    streaming={streaming && index === lastIndex}
+                    busy={streaming}
+                    versions={versions.get(message.id) ?? EMPTY_VERSIONS}
+                    onSelectVersion={selectVersion}
+                    onRewind={setRewindTarget}
+                  />
+                )}
+              </Fragment>
+            ))}
           </div>
         </div>
         {footer}
       </div>
+      {rewindTarget ? (
+        <Modal
+          title={t('rewindConfirmTitle')}
+          onClose={() => setRewindTarget(null)}
+          footer={
+            <>
+              <Button variant="outlined" onClick={() => setRewindTarget(null)}>
+                {t('cancel')}
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  rewindSession(session.id, rewindTarget.id)
+                  showToast({ key: 'rewindDone' })
+                  setRewindTarget(null)
+                }}
+              >
+                {t('rewindConfirm')}
+              </Button>
+            </>
+          }
+        >
+          {t('rewindConfirmDescription', { count: rewindCount })}
+        </Modal>
+      ) : null}
     </ScrollToBottomContext.Provider>
+  )
+}
+
+/** 压缩分隔条：标记归档边界，可展开查看摘要正文 */
+const CompressionDivider = ({
+  session,
+  open,
+  onToggle,
+}: {
+  session: Session
+  open: boolean
+  onToggle: () => void
+}) => {
+  const t = useTranslate()
+  const compression = session.compression
+  if (!compression) {
+    return null
+  }
+  return (
+    <div className={styles.compressionDivider}>
+      <button
+        type="button"
+        className={styles.compressionToggle}
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        {open ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />}
+        {t('contextCompressedNotice', { count: compression.archivedRounds })}
+      </button>
+      {open ? (
+        <div className={styles.compressionSummary}>{summaryDisplayText(compression.summaryRow)}</div>
+      ) : null}
+    </div>
   )
 }

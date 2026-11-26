@@ -84,3 +84,36 @@
     font-size: 16px;
   }
 }
+
+.compressedBadge {
+  margin-left: 4px;
+  font-size: 12px;
+  vertical-align: 1px;
+}
+
+.groupTag {
+  flex-shrink: 0;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--dsw-alias-brand-light, rgba(77, 107, 254, 0.12));
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-brand-text, #4d6bfe);
+  max-width: 88px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.menuGroupIcon {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+}
+
+.pinBadge {
+  margin-left: 4px;
+  font-size: 12px;
+  vertical-align: 1px;
+}

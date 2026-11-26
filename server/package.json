@@ -1,0 +1,27 @@
+{
+  "name": "myagent-server",
+  "version": "0.1.0",
+  "description": "MyAgent 记忆与上下文压缩后端：自我检索、Honcho 集成、压缩代理。",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "type": "tsc -p tsconfig.json",
+    "lint": "oxlint src test",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "fastify": "^5.6.0",
+    "gpt-tokenizer": "^2.9.0",
+    "ssh2": "^1.16.0",
+    "tsx": "^4.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ssh2": "^1.15.0",
+    "oxlint": "^1.63.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

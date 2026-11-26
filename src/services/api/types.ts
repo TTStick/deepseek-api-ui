@@ -232,6 +232,47 @@ export type MessageStreamEvent =
     }
   | { type: 'message_stop' }
   | { type: 'ping' }
+  | {
+      /** 记忆后端（后端自定义事件）：本轮自我检索注入的上下文，仅展示不回流 */
+      type: 'memory_recall'
+      injected: boolean
+      sections: Array<{ title: string; content: string }>
+      dialectic: string
+    }
+  | {
+      /** 上下文压缩（后端自定义事件）：压缩发生/被跳过的诊断信息 */
+      type: 'context_compressed'
+      summary: string
+      archiveRounds: number
+      estimatedBefore: number
+      estimatedAfter: number
+      fallback?: boolean
+      skipped?: string
+    }
+  | {
+      /** agent 工具开始执行（后端自定义事件） */
+      type: 'agent_tool'
+      toolUseId: string
+      name: string
+      input: unknown
+      status: 'running'
+    }
+  | {
+      /** agent 工具执行完成（后端自定义事件） */
+      type: 'agent_tool_result'
+      toolUseId: string
+      name: string
+      output: string
+      isError: boolean
+      status: 'done'
+    }
+  | {
+      /** agent 文件交付物（后端自定义事件）：write_file 或执行生成的图片 */
+      type: 'agent_artifact'
+      path: string
+      action: 'created' | 'updated' | 'generated'
+      size?: number
+    }
 
 /**
  * POST /anthropic/v1/files 的 purpose：PDF 与 Word、PPT 需要服务端做版面解析；
