@@ -104,6 +104,8 @@ export const en = {
   avatarMenuSettingsDialogThemeSelectDarkOption: 'Dark',
   avatarMenuSettingsDialogThemeSelectSystemOption: 'System',
   apiKeyStart: 'Enter an API Key to get started',
+  apiKeyServerConfigured: 'A server-side DeepSeek key is configured (local key optional)',
+  apiKeyServerHint: 'Chat, memory and compression use the server key. Attachments and speech still need a local key.',
   apiKeyEdit: 'Edit API Key',
   apiKeyPlaceholder: 'Enter API Key',
   apiKeyVerifying: 'Verifying...',

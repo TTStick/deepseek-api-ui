@@ -193,7 +193,13 @@ export const registerAuth = (app: FastifyInstance) => {
     const passwordSet = await isPasswordSet()
     const token = readCookie(request, SESSION_COOKIE) ?? readBearer(request)
     const authenticated = passwordSet ? await verifySession(token) : false
-    return { passwordSet, authenticated, requireAuth: env.requireAuth }
+    return {
+      passwordSet,
+      authenticated,
+      requireAuth: env.requireAuth,
+      // 只暴露布尔值：网页端据此决定是否还需要用户填写本机 API Key
+      serverApiKey: Boolean(env.deepseekApiKey),
+    }
   })
 
   app.post('/auth/login', { bodyLimit: 4096 }, async (request, reply) => {

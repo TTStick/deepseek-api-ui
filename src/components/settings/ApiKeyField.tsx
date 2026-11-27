@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { IconEditOutline16 } from '../base/icons.js'
 import { useSettings } from '../../services/settings.js'
+import { isServerApiKeyConfigured } from '../../services/serverKey.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { IconButton } from '../base/IconButton.js'
 import { useApiKeyForm } from './useApiKeyForm.js'
@@ -22,11 +23,14 @@ export const ApiKeyField = ({ editor }: { editor: ApiKeyEditor }) => {
   const t = useTranslate()
   const isMobile = useIsMobile()
   const { apiKey, editing, setEditing, form, showInput } = editor
+  const serverKeyConfigured = isServerApiKeyConfigured()
 
   return (
     <div className={styles.cell}>
       <div className={styles.apiKey}>
-        <div className={styles.label}>{t('apiKeyStart')}</div>
+        <div className={styles.label}>
+          {serverKeyConfigured ? t('apiKeyServerConfigured') : t('apiKeyStart')}
+        </div>
         {apiKey && !editing ? (
           <div className={styles.apiKeySaved}>
             <span className={styles.apiKeyMask}>{'*'.repeat(apiKey.length)}</span>
@@ -77,6 +81,9 @@ export const ApiKeyField = ({ editor }: { editor: ApiKeyEditor }) => {
             ) : null}
           </div>
         )}
+        {!apiKey && serverKeyConfigured ? (
+          <div className={styles.apiKeyHint}>{t('apiKeyServerHint')}</div>
+        ) : null}
         {showInput && form.error ? <div className={styles.error}>{form.error}</div> : null}
       </div>
     </div>
