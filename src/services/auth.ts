@@ -1,8 +1,15 @@
 import { getAgentApiOrigin } from './api/client.js'
+import { setServerApiKeyConfigured } from './serverKey.js'
 
 /** 单用户访问密码：登录状态、登录/登出、设置密码 */
 
-export type AuthStatus = { passwordSet: boolean; authenticated: boolean; requireAuth?: boolean }
+export type AuthStatus = {
+  passwordSet: boolean
+  authenticated: boolean
+  requireAuth?: boolean
+  /** 服务端是否已配置 DeepSeek Key（只有布尔值，不含 Key 本身） */
+  serverApiKey?: boolean
+}
 
 const base = () => getAgentApiOrigin()
 
@@ -11,7 +18,9 @@ export const fetchAuthStatus = async (): Promise<AuthStatus> => {
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`)
   }
-  return (await response.json()) as AuthStatus
+  const status = (await response.json()) as AuthStatus
+  setServerApiKeyConfigured(status.serverApiKey === true)
+  return status
 }
 
 const post = async (path: string, body: unknown): Promise<{ ok: boolean; message?: string }> => {

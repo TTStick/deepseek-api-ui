@@ -13,6 +13,7 @@ import {
   useUploads,
 } from '../attachments.js'
 import { useSettings } from '../settings.js'
+import { isServerApiKeyConfigured } from '../serverKey.js'
 import { translate } from '../../i18n/index.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
@@ -577,7 +578,7 @@ export const compressSession = async (sessionId: string) => {  const state = get
     return
   }
   const { apiKey, compressionEnabled } = useSettings.getState()
-  if (!apiKey || !compressionEnabled) {
+  if ((!apiKey && !isServerApiKeyConfigured()) || !compressionEnabled) {
     return
   }
   const history = getVisibleMessages(session)

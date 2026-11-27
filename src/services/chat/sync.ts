@@ -104,7 +104,8 @@ const pushSession = async (id: string): Promise<void> => {
   }
   try {
     // SSH 凭据只留在本机浏览器，不上传
-    const { ssh: _ssh, ...payload } = session as Session & { ssh?: unknown }
+    const payload = { ...session } as Record<string, unknown>
+    delete payload.ssh
     const response = await api(`/sessions/${encodeURIComponent(id)}`, {
       method: 'PUT',
       body: JSON.stringify({ session: payload }),
@@ -168,7 +169,8 @@ const applyRemote = async (session: Session) => {
     return
   }
   // 服务端不保存 SSH 凭据；用本地配置补回，避免同步后丢失
-  const { ssh: _remoteSsh, ...remote } = session as Session & { ssh?: unknown }
+  const remote = { ...session }
+  delete (remote as { ssh?: unknown }).ssh
   const local =
     useChatStore.getState().sessionCache[session.id] ??
     (await db.loadSession(session.id).catch(() => undefined))

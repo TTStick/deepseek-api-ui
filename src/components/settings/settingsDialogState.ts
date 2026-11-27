@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { useSettings } from '../../services/settings.js'
+import { isServerApiKeyConfigured } from '../../services/serverKey.js'
 
 /** 设置弹窗的分组：通用设置 / 记忆与上下文 / 消耗统计 / 数据管理 */
 export type SettingsSection = 'general' | 'memory' | 'usage' | 'data'
@@ -15,8 +16,20 @@ export const openSettings = (section: SettingsSection) =>
 
 export const closeSettings = () => useSettingsDialog.setState({ open: false })
 
-/** 没有 API Key 时打开设置并选中 API Key 所在的「数据管理」，返回是否已有 Key */
+/**
+ * 聊天/压缩：本机 Key 或服务端 Key 任一可用即可。
+ * 服务端 Key 由 /api/auth/status 的布尔字段告知，不会下发到浏览器。
+ */
 export const ensureApiKey = () => {
+  if (useSettings.getState().apiKey || isServerApiKeyConfigured()) {
+    return true
+  }
+  openSettings('data')
+  return false
+}
+
+/** 附件上传仍直连 DeepSeek Files API，必须使用本机 Key */
+export const ensureLocalApiKey = () => {
   if (useSettings.getState().apiKey) {
     return true
   }

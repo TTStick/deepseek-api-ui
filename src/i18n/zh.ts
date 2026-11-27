@@ -99,6 +99,8 @@ export const zh = {
   avatarMenuSettingsDialogThemeSelectDarkOption: '深色',
   avatarMenuSettingsDialogThemeSelectSystemOption: '跟随系统',
   apiKeyStart: '输入 API Key 开始使用',
+  apiKeyServerConfigured: '服务端已配置 DeepSeek Key（本机 Key 可选）',
+  apiKeyServerHint: '聊天、记忆和压缩会使用服务端 Key；附件上传和语音仍需要本机 Key。',
   apiKeyEdit: '修改 API Key',
   apiKeyPlaceholder: '请输入 API Key',
   apiKeyVerifying: '正在验证...',

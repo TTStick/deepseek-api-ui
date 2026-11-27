@@ -296,6 +296,12 @@
   user-select: none;
 }
 
+.apiKeyHint {
+  color: var(--dsw-alias-label-caption);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .apiKeyInput {
   gap: 12px;
   padding: 0 14px;

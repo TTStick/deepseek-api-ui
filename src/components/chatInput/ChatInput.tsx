@@ -32,7 +32,7 @@ import {
 import { stopReadAloud } from '../../services/speech/readAloud.js'
 import { IconButton } from '../base/IconButton.js'
 import { Tooltip } from '../base/Tooltip.js'
-import { ensureApiKey } from '../settings/settingsDialogState.js'
+import { ensureApiKey, ensureLocalApiKey } from '../settings/settingsDialogState.js'
 import { DragMask, useFileDrop } from './DragMask.js'
 import { showToast } from '../base/toastState.js'
 import { ACCEPT, useUploads } from '../../services/attachments.js'
@@ -90,7 +90,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   }, [t])
 
   const acceptFiles = (files: File[]) => {
-    if (files.length === 0 || useChatStore.getState().importingHistory || !ensureApiKey()) {
+    if (files.length === 0 || useChatStore.getState().importingHistory || !ensureLocalApiKey()) {
       return
     }
     const error = addDraftFiles(sessionId, files, useSettings.getState().apiKey ?? '')
@@ -100,7 +100,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   }
   const retryFile = useCallback(
     (id: string) => {
-      if (!useChatStore.getState().importingHistory && ensureApiKey()) {
+      if (!useChatStore.getState().importingHistory && ensureLocalApiKey()) {
         retryDraftAttachment(sessionId, id, useSettings.getState().apiKey ?? '')
       }
     },
@@ -277,7 +277,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
             onClick={() => {
               if (
                 voice.status !== 'idle' ||
-                (!useChatStore.getState().importingHistory && ensureApiKey())
+                (!useChatStore.getState().importingHistory && ensureLocalApiKey())
               ) {
                 void voice.toggle()
               }
@@ -289,7 +289,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
             icon={<IconPaperclipOutline16 />}
             tooltip={t('uploadFile')}
             disabled={importingHistory}
-            onClick={() => ensureApiKey() && fileInputRef.current?.click()}
+            onClick={() => ensureLocalApiKey() && fileInputRef.current?.click()}
           />
           <input
             ref={fileInputRef}
