@@ -85,9 +85,8 @@ export const SessionItem = memo(function SessionItem({
           </span>
         ) : null}
       </div>
-      <div className={styles.action} onClick={(event) => event.stopPropagation()}>
-        <Menu
-          options={[
+      <Menu
+        options={[
             {
               key: 'rename',
               label: t('sessionItemMenuRenameOption'),
@@ -150,12 +149,16 @@ export const SessionItem = memo(function SessionItem({
               onSelect: onDelete,
             },
           ]}
-        >
-          {({ toggle }) => (
+      >
+        {({ open, toggle }) => (
+          <div
+            className={clsx(styles.action, open && styles.actionOpen)}
+            onClick={(event) => event.stopPropagation()}
+          >
             <IconButton icon={<IconEllipsisOutline16 />} aria-label={t('more')} onClick={toggle} />
-          )}
-        </Menu>
-      </div>
+          </div>
+        )}
+      </Menu>
       {moving ? <MoveGroupDialog session={session} onClose={() => setMoving(false)} /> : null}
     </div>
   )

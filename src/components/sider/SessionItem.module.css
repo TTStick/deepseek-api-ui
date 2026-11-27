@@ -45,6 +45,11 @@
   margin-left: 4px;
 }
 
+/* 菜单打开后鼠标会离开会话行，保持触发器可见，避免锚点尺寸变成 0 导致菜单跳到左上角 */
+.actionOpen {
+  display: flex;
+}
+
 .renameInput {
   box-sizing: border-box;
   width: 100%;
