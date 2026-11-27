@@ -18,7 +18,8 @@
   transition: background 0.15s;
 }
 
-.switch[aria-pressed='true'] .track {
+/* Toggle.tsx 使用 role="switch" + aria-checked，视觉状态也必须读 aria-checked */
+.switch[aria-checked='true'] .track {
   background: var(--brand, #4d6bfe);
 }
 
@@ -33,6 +34,6 @@
   transition: left 0.15s;
 }
 
-.switch[aria-pressed='true'] .thumb {
+.switch[aria-checked='true'] .thumb {
   left: 18px;
 }
