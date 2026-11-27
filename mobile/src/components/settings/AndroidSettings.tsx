@@ -7,12 +7,16 @@ import {
 import { useTranslate, type LinkedMessage } from '../../i18n/index.js'
 import type { TtsVoice } from '../../services/api/speech.js'
 import {
+  applyTunnelAddr,
+  displayUrl,
   isServerMode,
+  restoreDirectUrl,
   setServerOptions,
   serverLogin,
   serverLogout,
   useServerConfig,
 } from '../../services/api/serverMode.js'
+import { savedAuthKey, targetFromUrl, useTunnel, waitTunnel } from '../../services/tailscale.js'
 import {
   BackupError,
   clearHistory,
@@ -302,10 +306,15 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const serverConfig = useServerConfig()
   const connected = isServerMode()
   const [serverEditing, setServerEditing] = useState(!connected)
-  const [serverUrl, setServerUrl] = useState(serverConfig.url)
+  const [serverUrl, setServerUrl] = useState(displayUrl(serverConfig))
   const [serverPassword, setServerPassword] = useState('')
   const [serverBusy, setServerBusy] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
+  const tunnel = useTunnel()
+  const [tsKey, setTsKey] = useState(savedAuthKey())
+  const [tsBusy, setTsBusy] = useState(false)
+  const [tsError, setTsError] = useState<string | null>(null)
+  const tunnelTarget = targetFromUrl(displayUrl(serverConfig))
 
   const connectServer = async () => {
     if (serverBusy) {
@@ -313,7 +322,13 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     }
     setServerBusy(true)
     setServerError(null)
-    const result = await serverLogin(serverUrl, serverPassword)
+    const snapshot = useTunnel.getState()
+    const viaTunnel = snapshot.enabled && snapshot.state === 'ready'
+    const result = await serverLogin(
+      viaTunnel ? `http://${snapshot.addr}` : serverUrl,
+      serverPassword,
+      { directUrl: serverUrl, tunnel: viaTunnel }
+    )
     setServerBusy(false)
     if (result.ok) {
       setServerPassword('')
@@ -322,6 +337,43 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     } else {
       setServerError(result.message ?? t('serverConnectFailed'))
     }
+  }
+
+  const startTunnelNow = async () => {
+    if (tsBusy) {
+      return
+    }
+    if (!tunnelTarget) {
+      setTsError(tr('请先填写服务器地址', 'Set the server URL first'))
+      return
+    }
+    setTsBusy(true)
+    setTsError(null)
+    useTunnel.getState().start(tsKey.trim() || savedAuthKey(), tunnelTarget)
+    const snapshot = await waitTunnel()
+    setTsBusy(false)
+    if (snapshot.state === 'ready') {
+      useTunnel.getState().setEnabled(true)
+      applyTunnelAddr(snapshot.addr)
+      return
+    }
+    if (snapshot.state === 'error') {
+      setTsError(snapshot.error || tr('隧道启动失败', 'Tunnel failed to start'))
+      return
+    }
+    setTsError(
+      snapshot.loginUrl
+        ? tr(`需要先在浏览器完成 Tailscale 登录：${snapshot.loginUrl}`, `Complete Tailscale login first: ${snapshot.loginUrl}`)
+        : tr('隧道启动超时', 'Tunnel start timed out')
+    )
+  }
+
+  const stopTunnelNow = () => {
+    useTunnel.getState().stop()
+    useTunnel.getState().setEnabled(false)
+    restoreDirectUrl()
+    setTsBusy(false)
+    setTsError(null)
   }
 
   const disconnectServer = () => {
@@ -607,7 +659,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
             <Group label={tr('服务器', 'Server')}>
               <Row
                 label={t('serverUrl')}
-                value={connected ? serverConfig.url : tr('未连接', 'Not connected')}
+                value={connected ? displayUrl(serverConfig) : tr('未连接', 'Not connected')}
                 onClick={() => setServerEditing((open) => !open)}
               />
               {connected ? (
@@ -691,6 +743,84 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
               ) : null}
               {!connected ? (
                 <p className={styles.serverHint}>{t('serverDisconnectedDescription')}</p>
+              ) : null}
+            </Group>
+            <Group label={tr('内置 Tailscale', 'Built-in Tailscale')}>
+              <Row
+                label={tr('通过隧道连接', 'Connect through tunnel')}
+                value={
+                  tunnel.state === 'ready'
+                    ? tunnel.ip || tr('已连接', 'Ready')
+                    : tunnel.state === 'starting'
+                      ? tr('连接中…', 'Connecting…')
+                      : tunnel.enabled
+                        ? tr('未就绪', 'Not ready')
+                        : tr('未启用', 'Off')
+                }
+                control={
+                  <Switch
+                    label={tr('内置 Tailscale', 'Built-in Tailscale')}
+                    checked={tunnel.enabled}
+                    toggle={() => {
+                      if (tunnel.enabled) {
+                        stopTunnelNow()
+                      } else {
+                        void startTunnelNow()
+                      }
+                    }}
+                  />
+                }
+              />
+              {tunnel.enabled ? (
+                <div className={styles.serverForm}>
+                  <p className={styles.serverHint}>
+                    {tr(
+                      'App 内直接建立 Tailscale 连接，只有发往服务器的请求走隧道；不需要系统 VPN，也不接管其他流量。',
+                      'Runs a userspace Tailscale node inside the app. Only requests to the server use the tunnel — no system VPN.'
+                    )}
+                  </p>
+                  <label className={styles.serverField}>
+                    <span>{tr('Tailscale Auth Key', 'Tailscale auth key')}</span>
+                    <input
+                      type="password"
+                      value={tsKey}
+                      autoComplete="off"
+                      placeholder="tskey-auth-..."
+                      onChange={(event) => setTsKey(event.target.value)}
+                    />
+                  </label>
+                  <p className={styles.serverHint}>
+                    {tunnelTarget
+                      ? tr(`隧道目标：${tunnelTarget}`, `Tunnel target: ${tunnelTarget}`)
+                      : tr('请先在上面填写服务器地址', 'Set the server URL above first')}
+                  </p>
+                  {tunnel.state === 'ready' ? (
+                    <p className={styles.serverHint}>
+                      {tr(
+                        `已就绪：本机节点 ${tunnel.ip}，请求经 127.0.0.1 转发`,
+                        `Ready: node ${tunnel.ip}, requests forwarded via 127.0.0.1`
+                      )}
+                    </p>
+                  ) : null}
+                  {tsError || tunnel.error ? (
+                    <p className={styles.serverError} role="alert">
+                      {tsError || tunnel.error}
+                    </p>
+                  ) : null}
+                  <div className={styles.serverActions}>
+                    <button
+                      type="button"
+                      className={styles.serverConnect}
+                      disabled={tsBusy}
+                      onClick={() => void startTunnelNow()}
+                    >
+                      {tsBusy ? tr('启动中…', 'Starting…') : tr('启动隧道', 'Start tunnel')}
+                    </button>
+                    <button type="button" className={styles.serverDisconnect} onClick={stopTunnelNow}>
+                      {tr('停止隧道', 'Stop tunnel')}
+                    </button>
+                  </div>
+                </div>
               ) : null}
             </Group>
             <Group>

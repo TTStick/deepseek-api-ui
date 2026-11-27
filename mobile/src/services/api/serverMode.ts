@@ -7,8 +7,12 @@ import { create } from 'zustand'
  */
 
 export type ServerConfig = {
-  /** 后端根地址，如 http://192.168.1.10:8090 或 https://myagent.example.com */
+  /** 实际请求使用的根地址；内置 Tailscale 就绪时会指向 127.0.0.1 代理 */
   url: string
+  /** 用户填写的服务器地址（直连地址），隧道关闭时与 url 相同 */
+  directUrl: string
+  /** 是否通过内置 Tailscale 隧道访问 */
+  tunnel: boolean
   /** 登录 token（/api/auth/login 返回） */
   token: string
   /** 是否启用服务端 Agent 工具（文件操作 / 沙箱执行） */
@@ -23,8 +27,12 @@ const read = (): ServerConfig => {
   try {
     const parsed = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<ServerConfig> | null
     if (parsed && typeof parsed.url === 'string' && typeof parsed.token === 'string') {
+      const url = parsed.url.replace(/\/+$/, '')
       return {
-        url: parsed.url.replace(/\/+$/, ''),
+        url,
+        directUrl:
+          typeof parsed.directUrl === 'string' ? parsed.directUrl.replace(/\/+$/, '') : url,
+        tunnel: parsed.tunnel === true,
         token: parsed.token,
         agent: parsed.agent !== false,
         memory: parsed.memory !== false,
@@ -33,7 +41,7 @@ const read = (): ServerConfig => {
   } catch {
     // 忽略损坏配置
   }
-  return { url: '', token: '', agent: true, memory: true }
+  return { url: '', directUrl: '', tunnel: false, token: '', agent: true, memory: true }
 }
 
 const write = (config: ServerConfig) => {
@@ -54,6 +62,30 @@ const apply = (config: ServerConfig) => {
   write(config)
   useServerConfig.setState(config)
 }
+
+/** 把请求地址切到内置 Tailscale 的本地回环代理 */
+export const applyTunnelAddr = (addr: string) => {
+  const config = useServerConfig.getState()
+  const direct = config.directUrl || config.url
+  if (!direct || !addr) {
+    return
+  }
+  apply({ ...config, url: `http://${addr}`, directUrl: direct, tunnel: true })
+}
+
+/** 关闭内置 Tailscale，恢复用户填写的直连地址 */
+export const restoreDirectUrl = () => {
+  const config = useServerConfig.getState()
+  const direct = config.directUrl || config.url
+  if (!direct) {
+    apply({ ...config, tunnel: false })
+    return
+  }
+  apply({ ...config, url: direct, directUrl: direct, tunnel: false })
+}
+
+/** 对外展示的服务器地址（用户填写的那个，而非隧道代理地址） */
+export const displayUrl = (config: ServerConfig): string => config.directUrl || config.url
 
 /** 是否处于服务器模式（已配置地址与登录 token） */
 export const isServerMode = (): boolean => {
@@ -138,7 +170,8 @@ const isPrivateHost = (hostname: string): boolean => {
 /** 登录自建服务器：校验地址 → 密码登录 → 记录 token */
 export const serverLogin = async (
   urlInput: string,
-  password: string
+  password: string,
+  options?: { directUrl?: string; tunnel?: boolean }
 ): Promise<ServerLoginResult> => {
   const url = urlInput.trim().replace(/\/+$/, '')
   if (!/^https?:\/\//i.test(url)) {
@@ -183,7 +216,13 @@ export const serverLogin = async (
       if (!ping.ok) {
         return { ok: false, message: '服务器未就绪' }
       }
-      apply({ ...useServerConfig.getState(), url, token: 'open' })
+      apply({
+        ...useServerConfig.getState(),
+        url,
+        directUrl: options?.directUrl ?? url,
+        tunnel: options?.tunnel ?? false,
+        token: 'open',
+      })
       return { ok: true }
     }
     if (!loginResponse.ok) {
@@ -200,7 +239,13 @@ export const serverLogin = async (
     if (!pingResponse.ok) {
       return { ok: false, message: '登录成功但接口不可用，请检查服务器版本' }
     }
-    apply({ ...useServerConfig.getState(), url, token: body.token })
+    apply({
+      ...useServerConfig.getState(),
+      url,
+      directUrl: options?.directUrl ?? url,
+      tunnel: options?.tunnel ?? false,
+      token: body.token,
+    })
     return { ok: true }
   } catch (error) {
     return {
@@ -217,7 +262,7 @@ export const setServerOptions = (options: Partial<Pick<ServerConfig, 'agent' | '
 
 /** 断开服务器模式，回到直连 DeepSeek */
 export const serverLogout = () => {
-  apply({ url: '', token: '', agent: true, memory: true })
+  apply({ url: '', directUrl: '', tunnel: false, token: '', agent: true, memory: true })
 }
 
 /** 轮次收尾上报（写入长期记忆，fire-and-forget）；write=false 时不写入 */

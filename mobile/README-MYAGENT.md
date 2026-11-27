@@ -22,6 +22,32 @@ UI 与本地会话存储保持不变，新增「服务器模式」——把模�
 
 > 手机端作为网页客户端，不再包含独立 App 的「检查更新 / 服务协议 / 帮助与支持」，账号页也不再要求填写 DeepSeek API Key，而是配置服务端地址。
 
+## 内置 Tailscale（无需系统 VPN）
+
+从 0.10.0 起 App 内置了一个 userspace 的 Tailscale 节点（`tsnet`）：
+
+- **只有本 App 发往服务器的请求走隧道**：不建立 VpnService、不接管设备流量、没有 VPN 授权弹窗，也能与其他 VPN/代理共存。
+- 实现：`mobile/tsproxy`（Go + gomobile）编译成 `tsproxy.aar`，在 `127.0.0.1` 起一个本地回环 TCP 代理，每条连接经 WireGuard 隧道转发到服务器；网页层只要把请求地址切到该代理即可，服务端无感。
+- 节点身份与密钥状态持久化在 App 私有目录，重启后自动恢复，无需重复授权。
+
+使用：
+
+1. Tailscale 管理台 **Settings → Keys** 生成 Auth Key（建议 reusable，`tskey-auth-...`）。
+2. App「设置 → 账号管理 → 内置 Tailscale」打开开关，粘贴 Auth Key。
+3. 服务器地址保持 tailnet 地址（如 `http://100.104.209.43:8000`），点「启动隧道」。
+4. 状态显示本节点 `100.x.x.x` 即就绪；之后正常「连接」服务器即可。
+
+重新构建 AAR（修改了 `mobile/tsproxy` 之后）：
+
+```sh
+cd mobile/tsproxy
+ANDROID_HOME=$HOME/Library/Android/sdk \
+ANDROID_NDK_HOME=$HOME/Library/Android/sdk/ndk/28.2.13676358 \
+./build-aar.sh
+```
+
+依赖：Go 1.27+、`gomobile`（`go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init`）、Android NDK。
+
 ## 跨端会话同步
 
 手机端与网页端共用服务端会话库（`/app/data/sessions`），不是两套独立历史：

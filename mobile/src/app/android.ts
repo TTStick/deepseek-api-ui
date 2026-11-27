@@ -57,6 +57,16 @@ export type AndroidBridge = {
     endBottom: number,
     active: boolean
   ) => void
+  /** 内置 Tailscale：启动 userspace 隧道，返回状态 JSON */
+  tsStart?: (authKey: string, target: string, hostname: string) => string
+  /** 内置 Tailscale：读取隧道状态 JSON */
+  tsStatus?: () => string
+  /** 内置 Tailscale：停止隧道 */
+  tsStop?: () => void
+  /** 内置 Tailscale：读取已保存的 Auth Key */
+  tsAuthKey?: () => string | null
+  /** 内置 Tailscale：保存 Auth Key（传 null 清除） */
+  tsSetAuthKey?: (value: string | null) => boolean
 }
 
 export const android = (window as Window & { DeepSeekAndroid?: AndroidBridge }).DeepSeekAndroid
