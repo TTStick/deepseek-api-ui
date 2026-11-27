@@ -1,0 +1,3 @@
+
+# tsproxy 构建中间产物（本地打补丁的 tailscale 副本）
+.build/

@@ -21,9 +21,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sync"
 
+	"github.com/wlynxg/anet"
+	"tailscale.com/net/netmon"
 	"tailscale.com/tsnet"
 )
 
@@ -62,6 +66,7 @@ func Start(stateDir, hostname, authKey, targetAddr string) error {
 	if curState == stateReady || curState == stateStarting {
 		return nil
 	}
+	prepareDirs(stateDir)
 	target = targetAddr
 	addr = ""
 	selfIP = ""
@@ -132,6 +137,46 @@ func Start(stateDir, hostname, authKey, targetAddr string) error {
 		}
 	}()
 	return nil
+}
+
+// SetAndroidRelease 传入 Android 主版本号（11、12…），
+// 供 anet 选择基于 ioctl 的实现来绕开 netlink 限制。
+func SetAndroidRelease(major int) {
+	anet.SetAndroidVersion(uint(major))
+}
+
+// Android（targetSdk >= 30）不允许应用 bind NETLINK_ROUTE，Go 的 net.Interfaces()
+// 会返回 "netlinkrib: permission denied"。tailscale 为此提供了 RegisterInterfaceGetter
+// 钩子，这里用 anet 基于 ioctl 枚举网卡与地址，绕开 netlink。
+func init() {
+	netmon.RegisterInterfaceGetter(func() ([]netmon.Interface, error) {
+		ifaces, err := anet.Interfaces()
+		if err != nil {
+			return nil, err
+		}
+		out := make([]netmon.Interface, 0, len(ifaces))
+		for i := range ifaces {
+			addrs, err := anet.InterfaceAddrsByInterface(&ifaces[i])
+			if err != nil {
+				addrs = nil
+			}
+			out = append(out, netmon.Interface{Interface: &ifaces[i], AltAddrs: addrs})
+		}
+		return out, nil
+	})
+}
+
+// prepareDirs 为 tailscale 准备可写的状态/缓存目录。
+// Android 应用没有 HOME/TMPDIR，logpolicy 找不到落盘位置会直接 panic
+// （"no safe place found to store log state"）。
+func prepareDirs(stateDir string) {
+	cacheDir := filepath.Join(stateDir, "cache")
+	if err := os.MkdirAll(cacheDir, 0o700); err != nil {
+		return
+	}
+	_ = os.Setenv("HOME", stateDir)
+	_ = os.Setenv("XDG_CACHE_HOME", cacheDir)
+	_ = os.Setenv("TMPDIR", cacheDir)
 }
 
 func failIfCurrent(myGen int, err error) {

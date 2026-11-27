@@ -2,6 +2,7 @@ package io.github.lijiahua1024.dsreplica;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.content.SharedPreferences;
 import android.net.Uri;
 
@@ -66,6 +67,7 @@ final class TsTunnel {
         }
         startError = "";
         try {
+            Tsproxy.setAndroidRelease(androidReleaseMajor());
             Tsproxy.start(stateDir,
                 hostname == null || hostname.isEmpty() ? "wydeepseek" : hostname,
                 authKey == null ? "" : authKey,
@@ -153,6 +155,19 @@ final class TsTunnel {
         } catch (JSONException error) {
             return "{\"state\":\"error\",\"addr\":\"\",\"ip\":\"\",\"loginUrl\":\"\",\"error\":\"status failed\"}";
         }
+    }
+
+    /** Android 主版本号，anet 用它选择绕开 netlink 的实现 */
+    private static int androidReleaseMajor() {
+        try {
+            String digits = Build.VERSION.RELEASE.split("\\.")[0].replaceAll("[^0-9]", "");
+            if (!digits.isEmpty()) {
+                return Integer.parseInt(digits);
+            }
+        } catch (Exception ignored) {
+            // 非数字版本号（预览版）按 11 处理
+        }
+        return 11;
     }
 
     private static String nullToEmpty(String value) {
