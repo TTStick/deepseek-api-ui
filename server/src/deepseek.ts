@@ -11,6 +11,32 @@ export type UpstreamRequest = {
   title?: { enabled: boolean }
 }
 
+/** Files API / file_id 图片、文档请求必须在消息接口上携带的 beta 头 */
+const FILES_BETA = 'files-api-2025-04-14'
+
+/**
+ * 前端直连 DeepSeek 时由浏览器携带 anthropic-beta；走服务端代理时
+ * 头不会自动透传，需要根据消息里的 image/document 块重新加上，否则上游返回
+ * “Missing or invalid anthropic-beta header”。
+ */
+export const hasFileBlocks = (messages: unknown[]): boolean =>
+  messages.some((message) => {
+    if (!message || typeof message !== 'object') {
+      return false
+    }
+    const content = (message as { content?: unknown }).content
+    if (!Array.isArray(content)) {
+      return false
+    }
+    return content.some(
+      (block) =>
+        typeof block === 'object' &&
+        block !== null &&
+        ((block as { type?: unknown }).type === 'image' ||
+          (block as { type?: unknown }).type === 'document')
+    )
+  })
+
 /** 上游非 2xx 响应；error.message 是原始响应体文本（可能为 JSON） */
 export class UpstreamError extends Error {
   constructor(
@@ -37,6 +63,7 @@ export async function* streamUpstream(
       'x-api-key': apiKey,
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
+      ...(hasFileBlocks(upstream.messages) ? { 'anthropic-beta': FILES_BETA } : {}),
     },
     body: JSON.stringify({ ...upstream, stream: true }),
     signal,
