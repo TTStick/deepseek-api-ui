@@ -316,6 +316,7 @@ cd mobile/android
 | `SSH_ALLOW_PRIVATE_HOSTS` | `false` | SSH 工具是否允许连内网/回环地址；默认禁止以防 SSRF |
 | `CHAT_RATE_LIMIT_PER_MINUTE` | `30` | 单客户端每分钟聊天/压缩请求上限 |
 | `ALLOWED_MODELS` | `deepseek-flash,deepseek-v4-pro` | 允许请求的模型白名单 |
+| `AGENT_MAX_ITERATIONS` | `24` | Agent 单轮工具循环上限；到顶后会再发一次无工具收尾请求 |
 | `CORS_ORIGINS` | 手机 WebView + 本地预览 | 额外允许的跨域来源，逗号分隔 |
 | `HONCHO_BASE_URL` / `HONCHO_API_KEY` | 空 / `local` | 自托管 Honcho 地址与凭据 |
 | `DATA_ENCRYPTION_KEY` | 空 | 可选：直接注入 32 字节主密钥（64 位 hex / base64）；优先级高于密钥文件 |

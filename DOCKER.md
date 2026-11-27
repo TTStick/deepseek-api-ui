@@ -84,6 +84,7 @@ docker compose ps
 
 - **文件操作**：`list_files` / `read_file` / `write_file` / `delete_file`（对应 claude-code 的 Read/Write/Edit 工具概念）
 - **隔离执行**：`run_python`（工作区为 cwd 运行 Python，已预装 numpy/matplotlib/pandas/requests，超时 60s、输出截断、matplotlib 无头模式出图）；`run_script`（执行工作区 .py）
+- **工具循环上限**：默认 24 轮（`AGENT_MAX_ITERATIONS` 可调）。到达上限时会先执行完最后一批工具，再发一次**不带工具**的收尾请求，要求模型总结已读内容并说明未完成部分，不会静默停在工具调用中。
 - **交付与展示**：写入/生成的图片自动成为交付卡片，可点击预览；头部「工作区」按钮打开文件树面板
 - **SSH 主机**：头部「SSH 主机」按钮为会话配置远程主机（密码或私钥认证），配置后本会话的文件操作与执行改到远程 `remotePath`；凭据只存本会话
 - **隔离与回收**：工作区在容器内独立目录（持久化卷 `myagent_workspaces`），路径越界被拒绝；关闭 agent 或删除会话即整体回收，会话资源不跨对话

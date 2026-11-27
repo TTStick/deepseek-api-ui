@@ -283,6 +283,7 @@ Root `.env` (read by Compose):
 | `SSH_ALLOW_PRIVATE_HOSTS` | `false` | Allow SSH to private/loopback addresses; off by default to block SSRF |
 | `CHAT_RATE_LIMIT_PER_MINUTE` | `30` | Per-client chat/compression request limit |
 | `ALLOWED_MODELS` | `deepseek-flash,deepseek-v4-pro` | Model allowlist |
+| `AGENT_MAX_ITERATIONS` | `24` | Max agent tool-loop turns per user request; a final no-tool synthesis call runs at the cap |
 | `CORS_ORIGINS` | mobile WebView + local preview | Additional allowed origins |
 | `HONCHO_BASE_URL` / `HONCHO_API_KEY` | empty / `local` | Self-hosted Honcho endpoint and key |
 | `DATA_ENCRYPTION_KEY` | empty | Optional 32-byte master key (64-char hex / base64); takes precedence over the key file |

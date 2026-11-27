@@ -11,12 +11,25 @@ import {
  * Agent 循环（移植 claude-code QueryEngine 的 tool_use/tool_result 循环）：
  * - 每轮把带工具的请求发给模型，解析流式事件累积 tool_use 与正文块
  * - 收到 stop_reason=tool_use 时执行工具，把 tool_result 回灌给下一轮
- * - 最多 MAX_ITERATIONS 轮，超限或 end_turn 结束
+ * - 最多 MAX_ITERATIONS 轮；到达上限后执行完最后一次工具，再发一次不带工具的收尾请求
  * - 中间轮的 message_stop 不转发（前端把整个循环视为一条回答），
  *   只在最终轮后转发一次 message_stop，保证前端流式消费兼容
  */
 
-export const MAX_AGENT_ITERATIONS = 10
+/**
+ * 一次用户提问允许的工具循环轮数。
+ * 读大量资料时 10 轮很容易在“还在读文件”时被截断；默认 24，
+ * 到顶后仍会再发一次不带工具的收尾请求，保证用户拿到回答而不是静默结束。
+ */
+export const MAX_AGENT_ITERATIONS = Math.max(
+  1,
+  Math.min(64, Number(process.env.AGENT_MAX_ITERATIONS ?? 24) || 24)
+)
+
+const FINAL_LIMIT_NOTICE =
+  '【系统提示】本轮工具调用次数已达到上限，不能再调用任何工具。' +
+  '请直接基于目前已经读取/检索到的内容给出最终回答；如果还有未完成的部分，' +
+  '明确说明哪些没有做完以及建议的下一步，不要再次请求调用工具。'
 
 export type AgentSinkEvent =
   | { type: 'agent_tool'; toolUseId: string; name: string; input: unknown; status: 'running' }
@@ -60,11 +73,17 @@ const iterate = async (
   apiKey: string,
   signal: AbortSignal,
   forward: (block: string) => void,
-  toolsForTurn: ReturnType<typeof agentToolsFor>
+  toolsForTurn: ReturnType<typeof agentToolsFor>,
+  includeTools = true
 ): Promise<ParsedTurn> => {
   const upstream: UpstreamRequest = {
     ...request,
-    tools: [...(request.tools ?? []), ...toolsForTurn],
+    ...(includeTools
+      ? { tools: [...(request.tools ?? []), ...toolsForTurn] }
+      : {}),
+  }
+  if (!includeTools) {
+    delete upstream.tools
   }
   const content: ContentBlock[] = []
   let stopReason: string | null = null
@@ -162,17 +181,21 @@ export const runAgentLoop = async ({
   const toolsForTurn = agentToolsFor(indexes)
   let toolCalls = 0
   let iterations = 0
+  let limitReached = false
   try {
     for (iterations = 0; iterations < MAX_AGENT_ITERATIONS; iterations += 1) {
       const turn = await iterate({ ...request, messages }, apiKey, signal, forward, toolsForTurn)
       const toolUses = turn.content.filter(
         (block): block is Extract<ContentBlock, { type: 'tool_use' }> => block.type === 'tool_use'
       )
-      const hasMore = turn.stopReason === 'tool_use' && toolUses.length > 0 && iterations + 1 < MAX_AGENT_ITERATIONS
       messages.push({ role: 'assistant', content: turn.content })
-      if (!hasMore) {
+      if (turn.stopReason !== 'tool_use' || toolUses.length === 0) {
         break
       }
+
+      // 即使这是最后一轮允许的模型调用，也先把这批工具执行完；
+      // 工具结果留在 messages 里供收尾请求使用，而不是直接静默 break。
+      const lastAllowedTurn = iterations + 1 >= MAX_AGENT_ITERATIONS
       const results: Array<Record<string, unknown>> = []
       for (const tool of toolUses) {
         if (signal.aborted) {
@@ -208,6 +231,40 @@ export const runAgentLoop = async ({
         break
       }
       messages.push({ role: 'user', content: results })
+      if (lastAllowedTurn) {
+        limitReached = true
+        break
+      }
+    }
+
+    if (limitReached && !signal.aborted) {
+      // 收尾请求不带工具：强制模型把已读到的内容组织成回答，并说明未完成部分。
+      const finalRequest: UpstreamRequest = {
+        ...request,
+        system: `${request.system}\n\n${FINAL_LIMIT_NOTICE}`,
+        messages,
+      }
+      const finalTurn = await iterate(finalRequest, apiKey, signal, forward, [], false)
+      iterations += 1
+      const finalText = finalTurn.content
+        .filter((block): block is Extract<ContentBlock, { type: 'text' }> => block.type === 'text')
+        .map((block) => block.text)
+        .join('')
+        .trim()
+      if (!finalText && !signal.aborted) {
+        // 极少数情况下模型不产出正文；给用户一个可读的收尾提示，避免空白回答。
+        const text = '本轮工具调用已达到上限，未能生成最终总结。请把问题拆小，或继续追问未完成的部分。'
+        const start = { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }
+        const delta = {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text },
+        }
+        const stop = { type: 'content_block_stop', index: 0 }
+        forward(`event: content_block_start\ndata: ${JSON.stringify(start)}\n\n`)
+        forward(`event: content_block_delta\ndata: ${JSON.stringify(delta)}\n\n`)
+        forward(`event: content_block_stop\ndata: ${JSON.stringify(stop)}\n\n`)
+      }
     }
   } catch (error) {
     if (error instanceof UpstreamError) {

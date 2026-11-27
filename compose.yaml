@@ -87,6 +87,8 @@ services:
       CHAT_RATE_LIMIT_PER_MINUTE: ${CHAT_RATE_LIMIT_PER_MINUTE:-30}
       # 允许请求的模型白名单（逗号分隔）
       ALLOWED_MODELS: ${ALLOWED_MODELS:-deepseek-flash,deepseek-v4-pro}
+      # Agent 单轮工具循环上限；到顶后会再发一次不带工具的收尾请求
+      AGENT_MAX_ITERATIONS: ${AGENT_MAX_ITERATIONS:-24}
       # 服务端静态加密密钥：优先用环境变量；否则从独立密钥卷读取/首次生成。
       # 密钥卷与数据卷分开，备份数据卷不会连带泄露密钥；密钥丢失则数据不可恢复。
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
