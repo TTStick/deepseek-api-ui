@@ -63,16 +63,77 @@ export const isServerMode = (): boolean => {
 
 export type ServerLoginResult = { ok: boolean; message?: string }
 
-/** 局域网/本机地址允许 HTTP；公网地址必须 HTTPS，避免密码与 Bearer token 明文传输 */
-const isPrivateHost = (hostname: string): boolean =>
-  hostname === 'localhost' ||
-  hostname === '::1' ||
-  hostname.startsWith('127.') ||
-  hostname.startsWith('10.') ||
-  hostname.startsWith('192.168.') ||
-  /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
-  (hostname.includes(':') &&
-    (hostname.startsWith('fe80:') || hostname.startsWith('fc') || hostname.startsWith('fd')))
+/** IPv4 点分十进制转 32 位整数，非法返回 null */
+const ipv4ToInt = (value: string): number | null => {
+  const parts = value.split('.')
+  if (parts.length !== 4) {
+    return null
+  }
+  let result = 0
+  for (const part of parts) {
+    if (!/^\d{1,3}$/.test(part)) {
+      return null
+    }
+    const octet = Number(part)
+    if (octet > 255) {
+      return null
+    }
+    result = result * 256 + octet
+  }
+  return result
+}
+
+/** 判断 IPv4 是否落在指定 CIDR 内 */
+const inIPv4Range = (host: string, base: string, bits: number): boolean => {
+  const target = ipv4ToInt(host)
+  const baseValue = ipv4ToInt(base)
+  if (target === null || baseValue === null) {
+    return false
+  }
+  const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0
+  return (target & mask) === (baseValue & mask)
+}
+
+/**
+ * 局域网/本机地址允许 HTTP；公网地址必须 HTTPS，避免密码与 Bearer token 明文传输。
+ * 覆盖：环回、RFC1918 私有网段、链路本地、CGNAT（Tailscale 使用 100.64.0.0/10）、
+ * IPv6 ULA/链路本地、localhost 及常见内网域名后缀（.local/.lan/.internal/.ts.net）。
+ */
+const isPrivateHost = (hostname: string): boolean => {
+  // URL.hostname 对 IPv6 会保留方括号
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase()
+
+  if (host === 'localhost' || host.endsWith('.localhost')) {
+    return true
+  }
+  // 局域网域名后缀，以及 Tailscale MagicDNS（*.ts.net 解析到 100.64.0.0/10）
+  if (/\.(local|lan|internal|home\.arpa|ts\.net)$/.test(host)) {
+    return true
+  }
+
+  if (host.includes(':')) {
+    return (
+      host === '::1' ||
+      host === '::' ||
+      host.startsWith('fe80:') || // IPv6 链路本地
+      /^f[cd]/.test(host) // IPv6 ULA（fc00::/7）
+    )
+  }
+
+  // 单标签主机名（如 nas、myagent）只能在局域网内解析
+  if (!host.includes('.')) {
+    return true
+  }
+
+  return (
+    inIPv4Range(host, '127.0.0.0', 8) || // 环回
+    inIPv4Range(host, '10.0.0.0', 8) || // 私有 A
+    inIPv4Range(host, '172.16.0.0', 12) || // 私有 B
+    inIPv4Range(host, '192.168.0.0', 16) || // 私有 C
+    inIPv4Range(host, '100.64.0.0', 10) || // CGNAT / Tailscale
+    inIPv4Range(host, '169.254.0.0', 16) // 链路本地
+  )
+}
 
 /** 登录自建服务器：校验地址 → 密码登录 → 记录 token */
 export const serverLogin = async (
@@ -90,7 +151,10 @@ export const serverLogin = async (
     return { ok: false, message: '服务器地址格式不正确' }
   }
   if (/^http:\/\//i.test(url) && !isPrivateHost(hostname)) {
-    return { ok: false, message: '公网地址必须使用 HTTPS（http 会明文传输密码和 token）' }
+    return {
+      ok: false,
+      message: '公网地址必须使用 HTTPS（http 会明文传输密码和 token）；内网或 Tailscale（100.x）地址可用 http',
+    }
   }
   try {
     const loginResponse = await fetch(`${url}/api/auth/login`, {
