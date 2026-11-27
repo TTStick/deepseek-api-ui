@@ -7,16 +7,22 @@ import {
 import { useTranslate, type LinkedMessage } from '../../i18n/index.js'
 import type { TtsVoice } from '../../services/api/speech.js'
 import {
-  applyTunnelAddr,
   displayUrl,
   isServerMode,
+  rememberDirectUrl,
   restoreDirectUrl,
   setServerOptions,
   serverLogin,
   serverLogout,
   useServerConfig,
 } from '../../services/api/serverMode.js'
-import { savedAuthKey, targetFromUrl, useTunnel, waitTunnel } from '../../services/tailscale.js'
+import {
+  openLoginPage,
+  savedAuthKey,
+  targetFromUrl,
+  useTunnel,
+  watchTunnel,
+} from '../../services/tailscale.js'
 import {
   BackupError,
   clearHistory,
@@ -339,7 +345,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     }
   }
 
-  const startTunnelNow = async () => {
+  const startTunnelNow = () => {
     if (tsBusy) {
       return
     }
@@ -349,23 +355,10 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     }
     setTsBusy(true)
     setTsError(null)
-    useTunnel.getState().start(tsKey.trim() || savedAuthKey(), tunnelTarget)
-    const snapshot = await waitTunnel()
+    rememberDirectUrl(serverUrl)
+    useTunnel.getState().start(tunnelTarget, tsKey.trim() || savedAuthKey())
+    watchTunnel()
     setTsBusy(false)
-    if (snapshot.state === 'ready') {
-      useTunnel.getState().setEnabled(true)
-      applyTunnelAddr(snapshot.addr)
-      return
-    }
-    if (snapshot.state === 'error') {
-      setTsError(snapshot.error || tr('隧道启动失败', 'Tunnel failed to start'))
-      return
-    }
-    setTsError(
-      snapshot.loginUrl
-        ? tr(`需要先在浏览器完成 Tailscale 登录：${snapshot.loginUrl}`, `Complete Tailscale login first: ${snapshot.loginUrl}`)
-        : tr('隧道启动超时', 'Tunnel start timed out')
-    )
   }
 
   const stopTunnelNow = () => {
@@ -765,7 +758,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                       if (tunnel.enabled) {
                         stopTunnelNow()
                       } else {
-                        void startTunnelNow()
+                        startTunnelNow()
                       }
                     }}
                   />
@@ -780,7 +773,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                     )}
                   </p>
                   <label className={styles.serverField}>
-                    <span>{tr('Tailscale Auth Key', 'Tailscale auth key')}</span>
+                    <span>{tr('Auth Key（可选）', 'Auth key (optional)')}</span>
                     <input
                       type="password"
                       value={tsKey}
@@ -789,6 +782,12 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                       onChange={(event) => setTsKey(event.target.value)}
                     />
                   </label>
+                  <p className={styles.serverHint}>
+                    {tr(
+                      '不填 Auth Key 时使用浏览器登录（推荐，长期有效）；填写则用于无人值守自动注册。',
+                      'Leave empty to sign in via browser (recommended); fill it for unattended registration.'
+                    )}
+                  </p>
                   <p className={styles.serverHint}>
                     {tunnelTarget
                       ? tr(`隧道目标：${tunnelTarget}`, `Tunnel target: ${tunnelTarget}`)
@@ -802,6 +801,28 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                       )}
                     </p>
                   ) : null}
+                  {tunnel.state === 'starting' && tunnel.loginUrl ? (
+                    <>
+                      <p className={styles.serverHint}>
+                        {tr(
+                          '首次使用需要在浏览器完成一次 Tailscale 登录，授权后会自动连上（节点密钥会保存在本机，之后无需再登录）。',
+                          'Sign in to Tailscale once in the browser. The node key is stored on this device, so later launches need no login.'
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        className={styles.serverConnect}
+                        onClick={() => {
+                          if (!openLoginPage()) {
+                            setTsError(tr('无法打开浏览器，请手动访问：', 'Cannot open browser, visit: ') + tunnel.loginUrl)
+                          }
+                        }}
+                      >
+                        {tr('浏览器登录 Tailscale', 'Sign in to Tailscale')}
+                      </button>
+                      <p className={styles.serverHint}>{tunnel.loginUrl}</p>
+                    </>
+                  ) : null}
                   {tsError || tunnel.error ? (
                     <p className={styles.serverError} role="alert">
                       {tsError || tunnel.error}
@@ -812,7 +833,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                       type="button"
                       className={styles.serverConnect}
                       disabled={tsBusy}
-                      onClick={() => void startTunnelNow()}
+                      onClick={() => startTunnelNow()}
                     >
                       {tsBusy ? tr('启动中…', 'Starting…') : tr('启动隧道', 'Start tunnel')}
                     </button>

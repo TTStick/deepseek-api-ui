@@ -3,12 +3,8 @@ import { android } from './android.js'
 import { useAndroidBackInterception } from './useAndroidBackInterception.js'
 import { useTranslate } from '../i18n/index.js'
 import { useSettings } from '../services/settings.js'
-import {
-  applyTunnelAddr,
-  restoreDirectUrl,
-  useServerConfig,
-} from '../services/api/serverMode.js'
-import { savedAuthKey, targetFromUrl, useTunnel, waitTunnel } from '../services/tailscale.js'
+import { useServerConfig } from '../services/api/serverMode.js'
+import { savedAuthKey, targetFromUrl, useTunnel, watchTunnel } from '../services/tailscale.js'
 import {
   isAndroidWide,
   useIsAndroidWide,
@@ -146,22 +142,15 @@ export const App = () => {
       return
     }
     const config = useServerConfig.getState()
-    if (!config.tunnel || !config.token) {
+    if (!config.tunnel) {
       return
     }
     const target = targetFromUrl(config.directUrl || config.url)
     if (!target) {
       return
     }
-    useTunnel.getState().setEnabled(true)
-    useTunnel.getState().start(savedAuthKey(), target)
-    void waitTunnel().then((snapshot) => {
-      if (snapshot.state === 'ready') {
-        applyTunnelAddr(snapshot.addr)
-      } else if (snapshot.state === 'error') {
-        restoreDirectUrl()
-      }
-    })
+    useTunnel.getState().start(target, savedAuthKey())
+    watchTunnel()
   }, [])
   const needsApiKey = Boolean(android && !configured && !serverConfigured)
   const drawerOpen = useMobileSider((state) => state.open)

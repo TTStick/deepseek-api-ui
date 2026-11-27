@@ -84,6 +84,16 @@ export const restoreDirectUrl = () => {
   apply({ ...config, url: direct, directUrl: direct, tunnel: false })
 }
 
+/** 记住用户填写的直连地址（尚未登录、隧道可能先于连接启动） */
+export const rememberDirectUrl = (url: string) => {
+  const value = url.trim().replace(/\/+$/, '')
+  if (!value) {
+    return
+  }
+  const config = useServerConfig.getState()
+  apply({ ...config, directUrl: value, url: config.tunnel ? config.url || value : value })
+}
+
 /** 对外展示的服务器地址（用户填写的那个，而非隧道代理地址） */
 export const displayUrl = (config: ServerConfig): string => config.directUrl || config.url
 
