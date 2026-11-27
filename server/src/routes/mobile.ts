@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
-import { env } from '../env.js'
 import type { IndexOptions } from '../indexing/store.js'
 import { chatRateGuard } from '../rateLimit.js'
+import { getRuntimeConfig } from '../runtimeConfig.js'
 import { hasExcessiveDepth } from '../validation.js'
 import { runChatPipeline, type ChatRequest } from './chat.js'
 
@@ -37,7 +37,8 @@ export const registerMobile = (app: FastifyInstance) => {
     if (Array.isArray(body.messages) && hasExcessiveDepth(body.messages)) {
       return reply.code(400).send({ error: { message: 'messages 嵌套层级过深' } })
     }
-    if (body.model && !env.allowedModels.has(body.model)) {
+    const config = getRuntimeConfig()
+    if (body.model && !config.allowedModels.has(body.model)) {
       return reply.code(400).send({ error: { message: '不支持的模型' } })
     }
     if (
@@ -47,7 +48,8 @@ export const registerMobile = (app: FastifyInstance) => {
     ) {
       return reply.code(400).send({ error: { message: 'API Key 格式不合法' } })
     }
-    const apiKey = (typeof body.apiKey === 'string' && body.apiKey.trim()) || env.deepseekApiKey
+    const apiKey =
+      (typeof body.apiKey === 'string' && body.apiKey.trim()) || config.deepseekApiKey
     if (!apiKey) {
       return reply
         .code(400)
@@ -118,7 +120,11 @@ export const registerMobile = (app: FastifyInstance) => {
         .syncTurn(sessionId, body.userContent, body.assistantContent)
         .catch((error) => request.log.warn({ err: error }, '写入记忆失败'))
     }
-    memory.onTurnComplete(sessionId, body.query ?? body.userContent ?? '', env.deepseekApiKey)
+    memory.onTurnComplete(
+      sessionId,
+      body.query ?? body.userContent ?? '',
+      getRuntimeConfig().deepseekApiKey
+    )
     return { ok: true }
   })
 

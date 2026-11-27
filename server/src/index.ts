@@ -5,11 +5,14 @@ import { env } from './env.js'
 import { registerAgent } from './routes/agent.js'
 import { registerAuth, registerAuthGuard } from './routes/auth.js'
 import { registerChat } from './routes/chat.js'
+import { registerConfig } from './routes/config.js'
 import { registerExport } from './routes/export.js'
 import { registerMemory } from './routes/memory.js'
 import { registerMobile } from './routes/mobile.js'
 import { registerSessions } from './routes/sessions.js'
 import { registerUsage } from './routes/usage.js'
+import { memory } from './memory/honcho.js'
+import { initRuntimeConfig } from './runtimeConfig.js'
 import { scrubSessionSecrets } from './sessions.js'
 import { initEncryption } from './storage/crypto.js'
 import { migrateAtRest } from './storage/migrate.js'
@@ -70,6 +73,7 @@ registerAuthGuard(app)
 app.get('/api/health', async () => ({ ok: true, version: '0.1.0' }))
 
 app.register(registerAuth, { prefix: '/api' })
+app.register(registerConfig, { prefix: '/api' })
 app.register(registerChat, { prefix: '/api' })
 app.register(registerMemory, { prefix: '/api' })
 app.register(registerAgent, { prefix: '/api' })
@@ -87,6 +91,8 @@ const start = async () => {
         ? '已生成新的服务端数据加密密钥；请立即备份 DATA_ENCRYPTION_KEY_FILE，丢失后无法恢复数据'
         : '服务端数据加密已启用'
     )
+    await initRuntimeConfig()
+    memory.reconfigure()
     const staleExecDirs = await cleanupExecutionTmp()
     if (staleExecDirs > 0) {
       app.log.info({ staleExecDirs }, '已清理异常退出遗留的 Python 临时明文目录')

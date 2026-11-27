@@ -323,6 +323,8 @@ cd mobile/android
 | `DATA_ENCRYPTION_KEY_FILE` | `/app/secrets/encryption.key` | 密钥文件路径；不设置环境密钥时首次启动自动生成 |
 | `EXEC_TMP_ROOT` | `/run/myagent-exec` | Python 执行的临时解密目录，必须是 tmpfs |
 
+**运行时项可以直接在网页「设置 → 服务端」修改**：DeepSeek Key、模型白名单、聊天限速、Agent 循环上限、CORS、Honcho 地址/凭据、SSH 内网权限、信任反代头和强制登录。保存后写入服务端加密配置，优先级高于 `.env`，并立即生效。端口、HTTPS 域名、加密密钥文件和构建代理仍属于 Compose 层，需要修改根目录 `.env` 后重建容器。
+
 完整的服务端变量说明见 [server/.env.example](server/.env.example)；公网清单见 [SECURITY.md](SECURITY.md)。
 
 ## 数据与同步
@@ -355,6 +357,7 @@ cd mobile/android
 | `GET` | `/api/usage` | Token、速度、余额、成本统计 |
 | `GET/POST/DELETE` | `/api/agent/*` | 工作区文件树、文件、SSH 测试、参考资料 |
 | `GET/DELETE` | `/api/memory/*` | 记忆状态、结论列表/删除 |
+| `GET/PUT` | `/api/server-config` | 图形化服务端运行时配置（Key 不回显） |
 | `POST` | `/api/auth/login`、`/api/auth/logout`、`/api/auth/password` | 登录 / 登出撤销 / 改密 |
 | `POST` | `/api/export/*` | Markdown / PDF / HTML 导出 |
 

@@ -37,6 +37,11 @@ export const env = {
   /** Python 子进程使用的无特权 UID/GID（容器以 root 启动时生效，隔离加密密钥） */
   agentExecUid: Math.max(1, Number(read('AGENT_EXEC_UID', '10001')) || 10001),
   agentExecGid: Math.max(1, Number(read('AGENT_EXEC_GID', '10001')) || 10001),
+  /** Agent 单轮工具循环轮数上限（GUI 可覆盖） */
+  agentMaxIterations: Math.max(
+    1,
+    Math.min(64, Number(read('AGENT_MAX_ITERATIONS', '24')) || 24)
+  ),
   /** 初始访问密码（仅首次启动、尚未通过界面设置时生效） */
   accessPassword: read('ACCESS_PASSWORD', ''),
   /** 公网部署：强制要求已设置访问密码（未设置时拒绝所有业务接口） */

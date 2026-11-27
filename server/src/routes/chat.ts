@@ -8,9 +8,9 @@ import { compressor } from '../compression/compress.js'
 import { ensureIndexes, type IndexOptions } from '../indexing/store.js'
 import type { MessageLike } from '../compression/window.js'
 import { streamUpstream, UpstreamError, type UpstreamRequest } from '../deepseek.js'
-import { env } from '../env.js'
 import { memory } from '../memory/honcho.js'
 import { chatRateGuard } from '../rateLimit.js'
+import { getRuntimeConfig } from '../runtimeConfig.js'
 import { hasExcessiveDepth } from '../validation.js'
 
 /** 前端 → 后端的聊天请求信封 */
@@ -282,7 +282,7 @@ export const runChatPipeline = async (
 /** 跨域来源：只回显白名单内的 Origin，避免任意站点读取 SSE */
 const corsOrigin = (request: FastifyRequest): string | undefined => {
   const origin = request.headers.origin
-  return origin && env.corsOrigins.has(origin) ? origin : undefined
+  return origin && getRuntimeConfig().corsOrigins.has(origin) ? origin : undefined
 }
 
 /**
@@ -298,7 +298,8 @@ export const registerChat = (app: FastifyInstance) => {
     if (hasExcessiveDepth(input.request.messages)) {
       return reply.code(400).send({ error: { message: 'messages 嵌套层级过深' } })
     }
-    if (!env.allowedModels.has(input.request.model)) {
+    const config = getRuntimeConfig()
+    if (!config.allowedModels.has(input.request.model)) {
       return reply.code(400).send({ error: { message: '不支持的模型' } })
     }
     if (
@@ -308,7 +309,7 @@ export const registerChat = (app: FastifyInstance) => {
     ) {
       return reply.code(400).send({ error: { message: 'API Key 格式不合法' } })
     }
-    const apiKey = input.apiKey?.trim() || env.deepseekApiKey
+    const apiKey = input.apiKey?.trim() || config.deepseekApiKey
     if (!apiKey) {
       return reply.code(400).send({ error: { message: '缺少 API Key：请在请求中携带 apiKey 或配置 DEEPSEEK_API_KEY' } })
     }
@@ -339,7 +340,11 @@ export const registerChat = (app: FastifyInstance) => {
         )
         .catch((error) => request.log.warn({ err: error }, '写入记忆失败'))
     }
-    memory.onTurnComplete(body.sessionId, body.query, body.apiKey?.trim() || env.deepseekApiKey)
+    memory.onTurnComplete(
+      body.sessionId,
+      body.query,
+      body.apiKey?.trim() || getRuntimeConfig().deepseekApiKey
+    )
     return { ok: true }
   })
 
@@ -351,7 +356,7 @@ export const registerChat = (app: FastifyInstance) => {
       messages: unknown[]
       compression?: { enabled?: boolean; thresholdTokens?: number }
     }
-    const apiKey = body.apiKey?.trim() || env.deepseekApiKey
+    const apiKey = body.apiKey?.trim() || getRuntimeConfig().deepseekApiKey
     if (!apiKey) {
       return reply.code(400).send({ error: { message: '缺少 API Key' } })
     }

@@ -2,7 +2,7 @@ import { Client, type ConnectConfig } from 'ssh2'
 import { lookup } from 'node:dns/promises'
 import { BlockList, isIP } from 'node:net'
 import path from 'node:path'
-import { env } from '../env.js'
+import { getRuntimeConfig } from '../runtimeConfig.js'
 
 /**
  * 每会话 SSH 连接（对话级主机资源，不跨会话共享）：
@@ -81,7 +81,7 @@ const BLOCKED_NAMES = new Set([
 /** 解析并固定到具体 IP，同时阻断 DNS 重绑定到内网 */
 const resolveSshTarget = async (host: string): Promise<string> => {
   const trimmed = host.trim()
-  if (env.sshAllowPrivateHosts) {
+  if (getRuntimeConfig().sshAllowPrivateHosts) {
     return trimmed
   }
   const lowered = trimmed.toLowerCase()

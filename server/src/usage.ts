@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { env } from './env.js'
+import { getRuntimeConfig } from './runtimeConfig.js'
 import { readSession } from './sessions.js'
 import {
   isEncrypted,
@@ -160,12 +161,13 @@ const fetchBalance = async (force = false): Promise<BalanceInfo> => {
   if (!force && balanceCache && now - balanceCache.at < BALANCE_CACHE_MS) {
     return balanceCache.data
   }
-  if (!env.deepseekApiKey) {
-    return { available: false, error: '服务端未配置 DEEPSEEK_API_KEY' }
+  const apiKey = getRuntimeConfig().deepseekApiKey
+  if (!apiKey) {
+    return { available: false, error: '服务端未配置 DeepSeek Key' }
   }
   try {
     const response = await fetch(BALANCE_URL, {
-      headers: { Authorization: `Bearer ${env.deepseekApiKey}` },
+      headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(15_000),
     })
     if (!response.ok) {

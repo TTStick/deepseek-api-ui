@@ -290,6 +290,8 @@ Root `.env` (read by Compose):
 | `DATA_ENCRYPTION_KEY_FILE` | `/app/secrets/encryption.key` | Key file path; generated on first boot if no env key is set |
 | `EXEC_TMP_ROOT` | `/run/myagent-exec` | Decrypted tmpfs for Python execution; must be a memory-backed filesystem |
 
+**Runtime options can be changed in Settings → Server**: DeepSeek key, model allowlist, chat rate limit, agent loop cap, CORS, Honcho URL/credential, SSH private-host access, trusted proxy headers and required sign-in. They are stored in the encrypted server config, override `.env`, and take effect immediately. Ports, HTTPS domain, encryption key file and build proxy remain Compose-level settings.
+
 See [server/.env.example](server/.env.example) and [SECURITY.md](SECURITY.md) for the full list.
 
 ## Data and sync
@@ -322,6 +324,7 @@ Sync is **last-write-wins** on `updatedAt`; deletes write tombstones, and client
 | `GET` | `/api/usage` | Tokens, speed, balance and cost |
 | `GET/POST/DELETE` | `/api/agent/*` | Workspace tree/files, SSH test, references |
 | `GET/DELETE` | `/api/memory/*` | Memory status and conclusions |
+| `GET/PUT` | `/api/server-config` | Graphical runtime server settings (keys are never returned) |
 | `POST` | `/api/auth/login`, `/api/auth/logout`, `/api/auth/password` | Login, logout/revocation, password change |
 | `POST` | `/api/export/*` | Markdown / PDF / HTML export |
 

@@ -11,8 +11,8 @@ import {
   verifyPassword,
   verifySession,
 } from '../auth.js'
-import { env } from '../env.js'
 import { clientAddress } from '../rateLimit.js'
+import { getRuntimeConfig } from '../runtimeConfig.js'
 
 /** 无需登录即可访问的路径（登录相关与健康检查） */
 const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/status', '/api/auth/login'])
@@ -92,8 +92,8 @@ const readBearer = (request: FastifyRequest): string | undefined => {
 
 const isAuthenticated = async (request: FastifyRequest): Promise<boolean> => {
   if (!(await isPasswordSet())) {
-    // 未设置密码：默认开放（本地/局域网）；公网部署可 REQUIRE_AUTH=true 强制拒绝
-    return !env.requireAuth
+    // 未设置密码：默认开放（本地/局域网）；公网部署可开启强制登录
+    return !getRuntimeConfig().requireAuth
   }
   const token = readCookie(request, SESSION_COOKIE) ?? readBearer(request)
   return verifySession(token)
@@ -103,7 +103,7 @@ const isAuthenticated = async (request: FastifyRequest): Promise<boolean> => {
 const applyCors = (request: FastifyRequest, reply: FastifyReply) => {
   const origin = request.headers.origin
   reply.header('Vary', 'Origin')
-  if (origin && env.corsOrigins.has(origin)) {
+  if (origin && getRuntimeConfig().corsOrigins.has(origin)) {
     reply.header('Access-Control-Allow-Origin', origin)
     reply.header('Access-Control-Allow-Credentials', 'true')
   }
@@ -124,7 +124,7 @@ const isAllowedWriteOrigin = (request: FastifyRequest): boolean => {
   if (!origin) {
     return true
   }
-  if (env.corsOrigins.has(origin)) {
+  if (getRuntimeConfig().corsOrigins.has(origin)) {
     return true
   }
   try {
@@ -193,12 +193,13 @@ export const registerAuth = (app: FastifyInstance) => {
     const passwordSet = await isPasswordSet()
     const token = readCookie(request, SESSION_COOKIE) ?? readBearer(request)
     const authenticated = passwordSet ? await verifySession(token) : false
+    const config = getRuntimeConfig()
     return {
       passwordSet,
       authenticated,
-      requireAuth: env.requireAuth,
+      requireAuth: config.requireAuth,
       // 只暴露布尔值：网页端据此决定是否还需要用户填写本机 API Key
-      serverApiKey: Boolean(env.deepseekApiKey),
+      serverApiKey: Boolean(config.deepseekApiKey),
     }
   })
 

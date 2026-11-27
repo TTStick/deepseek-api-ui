@@ -67,6 +67,17 @@ export const IconDarkOutline16 = () => (
   </svg>
 )
 
+/** 服务端（机架） */
+export const IconServerOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2.25" width="12" height="4.5" rx="1.2" stroke="currentColor" strokeWidth="1.2" />
+    <rect x="2" y="9.25" width="12" height="4.5" rx="1.2" stroke="currentColor" strokeWidth="1.2" />
+    <circle cx="4.6" cy="4.5" r="0.7" fill="currentColor" />
+    <circle cx="4.6" cy="11.5" r="0.7" fill="currentColor" />
+    <path d="M7 4.5h4.5M7 11.5h4.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+  </svg>
+)
+
 export const IconDataOutline16 = () => (
   <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path

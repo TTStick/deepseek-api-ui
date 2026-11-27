@@ -9,6 +9,7 @@ import {
   IconFollowsystemOutline16,
   IconLightOutline16,
   IconLoadingOutline16,
+  IconServerOutline16,
   IconSettingsOutline16,
   IconUploadOutline14,
 } from '../base/icons.js'
@@ -44,6 +45,7 @@ import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
 import { ImportConversation } from './ImportConversation.js'
 import { MemorySettings } from './MemorySettings.js'
 import { PasswordSetting } from './PasswordSetting.js'
+import { ServerSettings } from './ServerSettings.js'
 import { UsageSettings } from './UsageSettings.js'
 import { SettingCell, type Status } from './SettingCell.js'
 import { Toggle } from './Toggle.js'
@@ -65,6 +67,11 @@ const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode
     value: 'general',
     label: 'settingDialogAsideGeneralOptionLabel',
     icon: <IconSettingsOutline16 />,
+  },
+  {
+    value: 'server',
+    label: 'settingDialogAsideServerOptionLabel',
+    icon: <IconServerOutline16 />,
   },
   {
     value: 'memory',
@@ -129,6 +136,8 @@ const SettingsContent = ({
               <CollapseThinkingSetting />
               <LocationSetting />
             </>
+          ) : section === 'server' ? (
+            <ServerSettings />
           ) : section === 'memory' ? (
             <MemorySettings />
           ) : section === 'usage' ? (

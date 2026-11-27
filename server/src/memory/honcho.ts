@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto'
-import { HonchoClient, getHonchoClient, type SessionContext } from '../honcho/api.js'
+import {
+  HonchoClient,
+  getHonchoClient,
+  resetHonchoClient,
+  type SessionContext,
+} from '../honcho/api.js'
 import { env } from '../env.js'
+import { getRuntimeConfig } from '../runtimeConfig.js'
 import { buildMemoryContextBlock, sanitizeContext } from './fence.js'
 import { isTrivialPrompt } from './trivial.js'
 import { rewriteMemoryQuery } from './queryRewrite.js'
@@ -127,7 +133,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
 }
 
 export class HonchoMemory {
-  private readonly client: HonchoClient
+  private client: HonchoClient
   private readonly ensured = new Map<string, boolean>()
   private readonly baseCaches = new Map<string, BaseCache>()
   private readonly pendingDialectics = new Map<string, { content: string; firedAt: number }>()
@@ -142,13 +148,28 @@ export class HonchoMemory {
     this.client = getHonchoClient()
   }
 
+  /** 服务端设置里修改 Honcho 地址/凭据后重建连接缓存 */
+  reconfigure(): void {
+    resetHonchoClient()
+    this.client = getHonchoClient()
+    this.ensured.clear()
+    this.baseCaches.clear()
+    this.pendingDialectics.clear()
+    this.turnCounts.clear()
+    this.dialecticTokens.clear()
+    this.emptyStreaks.clear()
+    this.nextDialecticDue.clear()
+    this.health = null
+    this.lastError = null
+  }
+
   get workspace(): string {
     return WORKSPACE
   }
 
   /** 是否配置了记忆服务（HONCHO_BASE_URL 为空时全部功能旁路） */
   enabled(): boolean {
-    return Boolean(env.honchoBaseUrl)
+    return Boolean(getRuntimeConfig().honchoBaseUrl)
   }
 
   /** 确保 workspace/session/peers 存在（幂等，失败 fail-open） */
@@ -279,7 +300,7 @@ export class HonchoMemory {
 
   /** 每轮召回入口：基础层 + 就绪的辩证法结果，格式化为围栏块 */
   async recall(sessionId: string, query: string): Promise<RecallInfo> {
-    if (isTrivialPrompt(query) || !env.honchoBaseUrl) {
+    if (isTrivialPrompt(query) || !getRuntimeConfig().honchoBaseUrl) {
       return { block: '', sections: [], dialectic: '', injected: false }
     }
     await this.ensure(sessionId)
@@ -327,7 +348,7 @@ export class HonchoMemory {
   async syncTurn(sessionId: string, userContent: string, assistantContent: string): Promise<void> {
     const user = sanitizeContext(userContent).trim()
     const assistant = sanitizeContext(assistantContent).trim()
-    if ((!user && !assistant) || !env.honchoBaseUrl) {
+    if ((!user && !assistant) || !getRuntimeConfig().honchoBaseUrl) {
       return
     }
     await this.ensure(sessionId)
@@ -352,7 +373,7 @@ export class HonchoMemory {
 
   /** 轮次收尾：计数 + 后台刷新基础层 + 到期跑辩证法 */
   onTurnComplete(sessionId: string, query: string, apiKey: string): void {
-    if (!env.honchoBaseUrl || isTrivialPrompt(query)) {
+    if (!getRuntimeConfig().honchoBaseUrl || isTrivialPrompt(query)) {
       return
     }
     const sessionKey = slugify(sessionId)
@@ -373,12 +394,13 @@ export class HonchoMemory {
 
   /** 供 /api/memory/status：可用性 + 连接状态 */
   async status(): Promise<{ available: boolean; connected: boolean; provider: string; workspace: string; lastError: string | null }> {
-    if (!env.honchoBaseUrl) {
+    const baseUrl = getRuntimeConfig().honchoBaseUrl
+    if (!baseUrl) {
       return { available: false, connected: false, provider: 'honcho', workspace: WORKSPACE, lastError: null }
     }
     if (this.health === null) {
       try {
-        const response = await fetch(`${env.honchoBaseUrl.replace(/\/+$/, '')}/health`, {
+        const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/health`, {
           signal: AbortSignal.timeout(2_500),
         })
         this.health = response.ok

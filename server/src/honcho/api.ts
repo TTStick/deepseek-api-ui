@@ -1,4 +1,4 @@
-import { env } from '../env.js'
+import { getRuntimeConfig } from '../runtimeConfig.js'
 
 /** Honcho v3 REST 客户端（对齐自托管 server 3.7 的 /v3 路由，见官方仓库 src/routers） */
 export class HonchoApiError extends Error {
@@ -205,7 +205,16 @@ let shared: HonchoClient | null = null
 
 export const getHonchoClient = (): HonchoClient => {
   if (!shared) {
-    shared = new HonchoClient(env.honchoApiKey || 'local', env.honchoBaseUrl || 'http://localhost:8000')
+    const config = getRuntimeConfig()
+    shared = new HonchoClient(
+      config.honchoApiKey || 'local',
+      config.honchoBaseUrl || 'http://localhost:8000'
+    )
   }
   return shared
+}
+
+/** 设置页修改 Honcho 地址后重建客户端 */
+export const resetHonchoClient = (): void => {
+  shared = null
 }

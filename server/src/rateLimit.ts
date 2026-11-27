@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { env } from './env.js'
+import { getRuntimeConfig } from './runtimeConfig.js'
 
 /**
  * 轻量内存限速：用于消耗 LLM 额度或发起出站连接的接口。
@@ -37,7 +37,7 @@ export const createRateLimiter = (max: number, windowMs: number) => {
  * 只有显式 TRUST_PROXY=true（且前置代理会覆写 XFF）时才读取该头。
  */
 export const clientAddress = (request: FastifyRequest): string => {
-  if (!env.trustProxy) {
+  if (!getRuntimeConfig().trustProxy) {
     return request.socket.remoteAddress ?? request.ip
   }
   const forwarded = request.headers['x-forwarded-for']
@@ -47,7 +47,7 @@ export const clientAddress = (request: FastifyRequest): string => {
   return request.ip
 }
 
-const chatLimiter = createRateLimiter(env.chatRateLimitPerMinute, 60_000)
+const chatLimiters = new Map<number, (key: string) => RateLimitResult>()
 const sshTestLimiter = createRateLimiter(10, 60_000)
 
 const makeGuard = (limiter: (key: string) => RateLimitResult) => {
@@ -63,6 +63,18 @@ const makeGuard = (limiter: (key: string) => RateLimitResult) => {
 }
 
 /** 聊天/压缩共用同一个桶，避免切换接口绕过；超限返回 429 */
-export const chatRateGuard = makeGuard(chatLimiter)
+export const chatRateGuard: (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => Promise<unknown> = async (request, reply) => {
+  const max = getRuntimeConfig().chatRateLimitPerMinute
+  let limiter = chatLimiters.get(max)
+  if (!limiter) {
+    limiter = createRateLimiter(max, 60_000)
+    chatLimiters.set(max, limiter)
+  }
+  return makeGuard(limiter)(request, reply)
+}
+
 /** SSH 连通性测试会主动出站，单独限速 */
 export const sshTestRateGuard = makeGuard(sshTestLimiter)

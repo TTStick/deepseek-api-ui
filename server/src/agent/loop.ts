@@ -1,5 +1,6 @@
 import { streamUpstream, UpstreamError, type UpstreamRequest } from '../deepseek.js'
 import type { IndexOptions } from '../indexing/store.js'
+import { getRuntimeConfig } from '../runtimeConfig.js'
 import {
   agentToolsFor,
   ToolExecutor,
@@ -179,11 +180,12 @@ export const runAgentLoop = async ({
   const messages = [...request.messages] as Array<Record<string, unknown>>
   const executor = new ToolExecutor(sessionId, target, indexes)
   const toolsForTurn = agentToolsFor(indexes)
+  const maxIterations = getRuntimeConfig().agentMaxIterations
   let toolCalls = 0
   let iterations = 0
   let limitReached = false
   try {
-    for (iterations = 0; iterations < MAX_AGENT_ITERATIONS; iterations += 1) {
+    for (iterations = 0; iterations < maxIterations; iterations += 1) {
       const turn = await iterate({ ...request, messages }, apiKey, signal, forward, toolsForTurn)
       const toolUses = turn.content.filter(
         (block): block is Extract<ContentBlock, { type: 'tool_use' }> => block.type === 'tool_use'
@@ -195,7 +197,7 @@ export const runAgentLoop = async ({
 
       // 即使这是最后一轮允许的模型调用，也先把这批工具执行完；
       // 工具结果留在 messages 里供收尾请求使用，而不是直接静默 break。
-      const lastAllowedTurn = iterations + 1 >= MAX_AGENT_ITERATIONS
+      const lastAllowedTurn = iterations + 1 >= maxIterations
       const results: Array<Record<string, unknown>> = []
       for (const tool of toolUses) {
         if (signal.aborted) {
