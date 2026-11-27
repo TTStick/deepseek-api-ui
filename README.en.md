@@ -82,7 +82,7 @@ WyDeepSeek (internally **MyAgent**) is a **single-user, self-hosted agent worksp
 ### Context compression (ported from Hermes)
 
 - Head-protected + summarized middle + budgeted tail, triggered near the threshold.
-- Default threshold: `50% × (context window − max output)`, 64K floor; tail budget `min(25K, ctx×2.5%)`.
+- Default threshold: `50% × (context window − max output)`, 64K floor; with the 1M window / 393K max output it triggers at about **327K tokens**; tail budget `min(25K, ctx×2.5%)`.
 - Iterative summaries: previous summary + new turns; deterministic fallback summary and cooldown on failure.
 - **No history loss**: messages stay visible; only the model projection skips archived turns. A “context compressed (N turns)” divider exposes the summary.
 - Header ring shows current context usage against the **1M** window (DeepSeek Flash / V4 Pro expose 1,048,576 tokens; yellow ≥70%, red ≥90%); manual “compress now” is available.
@@ -112,6 +112,13 @@ flowchart LR
 - Delivered-file cards: text/image preview and download; the web client also has a workspace file tree.
 - Web-only SSH remote workspace (password or private key, session-scoped, never synced).
 - Tool calls render as a collapsible timeline, expanded while running and collapsed when done.
+
+### Server settings and encryption at rest
+
+- Settings → **Server** provides a graphical runtime config for the server DeepSeek key, model allowlist, chat rate limit, agent loop cap, CORS, Honcho URL/credential, SSH private-host access, trusted proxy headers and required sign-in. It is stored in encrypted `runtime-config.json`, overrides `.env`, and applies immediately.
+- API and Honcho credentials only expose configured/source state and are never returned to the browser; changing the Honcho URL reconnects immediately.
+- Conversations, compression summaries, references, agent workspace files and SQLite indexes are encrypted at rest with AES-256-GCM; indexes decrypt into memory for queries, and Python runs in tmpfs as unprivileged UID 10001.
+- Ports, HTTPS domain, encryption key file and build proxy remain Compose-level settings in the root `.env`.
 
 ### Multi-device sync
 
