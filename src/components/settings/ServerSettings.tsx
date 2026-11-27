@@ -103,10 +103,6 @@ export const ServerSettings = () => {
       setError(t('serverConfigModelsRequired'))
       return
     }
-    if (form.requireAuth && !config.passwordSet) {
-      setError(t('serverConfigPasswordRequired'))
-      return
-    }
     const input: ServerConfigInput = {
       allowedModels: models,
       chatRateLimitPerMinute: Number(form.chatRateLimit),
