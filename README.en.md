@@ -85,7 +85,7 @@ WyDeepSeek (internally **MyAgent**) is a **single-user, self-hosted agent worksp
 - Default threshold: `50% × (context window − max output)`, 64K floor; tail budget `min(25K, ctx×2.5%)`.
 - Iterative summaries: previous summary + new turns; deterministic fallback summary and cooldown on failure.
 - **No history loss**: messages stay visible; only the model projection skips archived turns. A “context compressed (N turns)” divider exposes the summary.
-- Header ring shows current context usage against a 128K window (yellow ≥70%, red ≥90%); manual “compress now” is available.
+- Header ring shows current context usage against the **1M** window (DeepSeek Flash / V4 Pro expose 1,048,576 tokens; yellow ≥70%, red ≥90%); manual “compress now” is available.
 
 ```mermaid
 flowchart LR

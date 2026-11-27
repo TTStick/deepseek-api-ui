@@ -28,7 +28,11 @@ import { WorkspacePanel } from '../agent/WorkspacePanel.js'
 import styles from './HeaderStats.module.css'
 
 const formatTokens = (value: number): string =>
-  value >= 1000 ? `${(value / 1000).toFixed(1)}K` : String(value)
+  value >= 1_000_000
+    ? `${(value / 1_000_000).toFixed(1)}M`
+    : value >= 1000
+      ? `${(value / 1000).toFixed(1)}K`
+      : String(value)
 
 /** 上下文占用圆环：按最近一轮真实 prompt token 计算占比，颜色随占用率变化 */
 const ContextRing = ({ used, capacity }: { used: number; capacity: number }) => {

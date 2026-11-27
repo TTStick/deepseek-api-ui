@@ -125,14 +125,24 @@ export const planWindow = (messages: MessageLike[], tailTokenBudget: number): Wi
   return { rounds, tailStart, questionIndex, previousSummary }
 }
 
+/**
+ * DeepSeek 当前模型窗口（官方 /models，2026-11）：
+ * deepseek-flash / deepseek-v4-pro 均为 1,048,576，最大输出 393,216。
+ * 压缩阈值按 50% ×（窗口 − 最大输出）计算，保留 64K 下限。
+ */
+export const DEFAULT_CONTEXT_WINDOW_TOKENS = 1_048_576
+export const DEFAULT_MAX_OUTPUT_TOKENS = 393_216
+
 /** 默认压缩阈值：50% ×（上下文窗口 − 最大输出），64K 下限（Hermes MINIMUM_CONTEXT_LENGTH） */
-export const computeThresholdTokens = (contextLength = 128_000, maxOutput = 8_000): number =>
-  Math.max(64_000, Math.round((contextLength - maxOutput) * 0.5))
+export const computeThresholdTokens = (
+  contextLength = DEFAULT_CONTEXT_WINDOW_TOKENS,
+  maxOutput = DEFAULT_MAX_OUTPUT_TOKENS
+): number => Math.max(64_000, Math.round((contextLength - maxOutput) * 0.5))
 
 /** 尾部 token 预算（Hermes lean 模式）：min(25K, ctx×2.5%)，夹在 10K-25K，且 ≤ 阈值×50% */
 export const computeTailBudget = (
   thresholdTokens: number,
-  contextLength = 128_000
+  contextLength = DEFAULT_CONTEXT_WINDOW_TOKENS
 ): number => {
   const lean = Math.min(25_000, Math.round(contextLength * 0.025))
   const clamped = Math.max(10_000, Math.min(25_000, lean))

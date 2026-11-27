@@ -22,8 +22,12 @@ export const sessionTokenTotals = (session: Session): TokenTotals => {
   return totals
 }
 
-/** 模型上下文窗口（token） */
-export const CONTEXT_WINDOW_TOKENS = 128_000
+/**
+ * 当前 DeepSeek 模型上下文窗口（token）。
+ * 官方 /models 元数据（2026-11）：
+ * deepseek-flash: 1,048,576；deepseek-v4-pro: 1,048,576。
+ */
+export const CONTEXT_WINDOW_TOKENS = 1_048_576
 
 /** 当前上下文占用 = 最近一轮请求的真实 prompt token（含缓存写入），无请求时回退估算 */
 export const contextPromptTokens = (session: Session): number => {

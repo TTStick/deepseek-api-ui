@@ -81,17 +81,18 @@ describe('planWindow', () => {
 })
 
 describe('阈值与预算', () => {
-  it('阈值 = 50% 有效窗口且不低于 64K（Hermes MINIMUM_CONTEXT_LENGTH）', () => {
-    expect(computeThresholdTokens()).toBeGreaterThanOrEqual(64_000)
+  it('默认按 1M 有效窗口计算阈值，且不低于 64K（Hermes MINIMUM_CONTEXT_LENGTH）', () => {
+    expect(computeThresholdTokens()).toBe(327_680)
     expect(computeThresholdTokens(64_000, 4_000)).toBe(64_000)
     expect(computeThresholdTokens(512_000, 8_000)).toBe(252_000)
   })
 
-  it('尾部预算夹在 10K-25K 且不超过阈值 50%（128K 上下文 lean=3.2K 落 10K 下限）', () => {
-    expect(computeTailBudget(64_000)).toBe(10_000)
-    expect(computeTailBudget(252_000)).toBe(10_000)
-    expect(computeTailBudget(24_000)).toBe(10_000)
+  it('尾部预算夹在 10K-25K 且不超过阈值 50%', () => {
+    expect(computeTailBudget(64_000, 128_000)).toBe(10_000)
+    expect(computeTailBudget(252_000, 128_000)).toBe(10_000)
+    expect(computeTailBudget(24_000, 128_000)).toBe(10_000)
     expect(computeTailBudget(4_000)).toBe(2_000)
+    expect(computeTailBudget(327_680)).toBe(25_000)
   })
 })
 
