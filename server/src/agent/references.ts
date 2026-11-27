@@ -31,6 +31,83 @@ const sanitizePath = (path: string): string => {
   return cleaned || 'unnamed.md'
 }
 
+/** 与前端一致：修复未声明 UTF-8 的 Mac zip 文件名（Latin-1 → UTF-8） */
+export const repairReferenceName = (name: string): string => {
+  if (!name) {
+    return name
+  }
+  const bytes = Buffer.alloc(name.length)
+  for (let index = 0; index < name.length; index += 1) {
+    const code = name.charCodeAt(index)
+    if (code > 0xff) {
+      return name.normalize('NFC')
+    }
+    bytes[index] = code
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes).normalize('NFC')
+  } catch {
+    return name.normalize('NFC')
+  }
+}
+
+const isMetadataPath = (value: string): boolean =>
+  value
+    .replace(/\\/g, '/')
+    .split('/')
+    .some(
+      (segment) =>
+        segment === '__MACOSX' ||
+        segment === '.DS_Store' ||
+        segment === 'Thumbs.db' ||
+        segment === 'desktop.ini' ||
+        segment.startsWith('._')
+    )
+
+/**
+ * 历史 Mac zip 可能已经以乱码目录落盘；打开资料时顺手修复。
+ * 同时清掉 __MACOSX / ._ 资源分叉，避免模型把这些二进制元数据当正文。
+ */
+export const repairReferenceStorage = async (sessionId: string): Promise<{
+  renamed: number
+  removed: number
+}> => {
+  const entries = await workspaces
+    .listFilesRecursive(sessionId, REFERENCES_DIR)
+    .catch(() => [] as Array<{ path: string; size: number; mtimeMs: number }>)
+  let renamed = 0
+  let removed = 0
+  for (const entry of entries) {
+    const relative = entry.path.startsWith(`${REFERENCES_DIR}/`)
+      ? entry.path.slice(REFERENCES_DIR.length + 1)
+      : entry.path
+    if (isMetadataPath(relative)) {
+      await workspaces.deleteFile(sessionId, entry.path).catch(() => undefined)
+      removed += 1
+      continue
+    }
+    const fixed = relative
+      .split('/')
+      .map((segment) => repairReferenceName(segment))
+      .join('/')
+    if (fixed === relative) {
+      continue
+    }
+    try {
+      await workspaces.moveFile(
+        sessionId,
+        entry.path,
+        `${REFERENCES_DIR}/${fixed}`
+      )
+      renamed += 1
+    } catch {
+      // 目标已存在或文件被占用：保留原名，避免覆盖用户资料
+    }
+  }
+  await workspaces.pruneEmptyDirs(sessionId, REFERENCES_DIR).catch(() => undefined)
+  return { renamed, removed }
+}
+
 /** 写入一批参考资料（前端已解压好 zip；后端只做校验与落盘） */
 export const saveReferences = async (
   sessionId: string,
@@ -41,6 +118,10 @@ export const saveReferences = async (
   let total = 0
   let count = 0
   for (const file of entries) {
+    const relative = sanitizePath(file.path)
+    if (isMetadataPath(relative)) {
+      continue
+    }
     const size = Buffer.byteLength(file.content, 'utf8')
     if (size > MAX_FILE_BYTES || total + size > MAX_TOTAL_BYTES) {
       continue
@@ -48,7 +129,7 @@ export const saveReferences = async (
     total += size
     await workspaces.writeFile(
       sessionId,
-      `${REFERENCES_DIR}/${sanitizePath(file.path)}`,
+      `${REFERENCES_DIR}/${relative}`,
       file.content,
       MAX_FILE_BYTES
     )
@@ -59,11 +140,15 @@ export const saveReferences = async (
 
 /** 列出现有资料（含预览）；递归包含 zip 内的子目录 */
 export const listReferences = async (sessionId: string): Promise<ReferenceItem[]> => {
+  await repairReferenceStorage(sessionId).catch(() => undefined)
   const entries = await workspaces
     .listFilesRecursive(sessionId, REFERENCES_DIR)
     .catch(() => [] as Array<{ path: string; size: number; mtimeMs: number }>)
   const items: ReferenceItem[] = []
   for (const entry of entries) {
+    if (isMetadataPath(entry.path)) {
+      continue
+    }
     const preview = await workspaces
       .readFileRange(sessionId, entry.path, 1, 20, PREVIEW_CHARS)
       .then(({ content }) => content.replace(/\s+/g, ' ').slice(0, PREVIEW_CHARS))

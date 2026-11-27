@@ -21,6 +21,45 @@ const MAX_FILE_BYTES = 64 * 1024 * 1024
 
 const isTextFile = (name: string): boolean => /\.(md|markdown|txt)$/i.test(name)
 
+/**
+ * 修复 Mac 压缩包的文件名：
+ * 部分 zip 用 UTF-8 存中文名但没有设置 UTF-8 标志，fflate 会按 Latin-1 解码，
+ * 得到“æ§å«…”这类乱码。这里把 Latin-1 码点还原成字节，再按 UTF-8 解码；
+ * 真正的 Latin-1 文件名会解码失败并保留原样。
+ */
+export const repairZipEntryName = (name: string): string => {
+  if (!name) {
+    return name
+  }
+  const bytes = new Uint8Array(name.length)
+  for (let index = 0; index < name.length; index += 1) {
+    const code = name.charCodeAt(index)
+    if (code > 0xff) {
+      return name.normalize('NFC')
+    }
+    bytes[index] = code
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes).normalize('NFC')
+  } catch {
+    return name.normalize('NFC')
+  }
+}
+
+/** macOS 压缩包里的资源分叉/目录元数据，不是用户资料 */
+const isMetadataPath = (path: string): boolean =>
+  path
+    .replace(/\\/g, '/')
+    .split('/')
+    .some(
+      (segment) =>
+        segment === '__MACOSX' ||
+        segment === '.DS_Store' ||
+        segment === 'Thumbs.db' ||
+        segment === 'desktop.ini' ||
+        segment.startsWith('._')
+    )
+
 /** 保留 zip 内相对路径并清洗（去掉 . 与 .. 段） */
 const sanitizeEntryPath = (raw: string): string => {
   const cleaned = raw
@@ -42,7 +81,8 @@ const collectTextFiles = async (file: File): Promise<Array<{ path: string; conte
     const entries: Array<{ path: string; content: string }> = []
     let count = 0
     for (const [rawName, bytes] of Object.entries(archive)) {
-      if (!isTextFile(rawName) || bytes.length > MAX_FILE_BYTES) {
+      const name = repairZipEntryName(rawName)
+      if (isMetadataPath(name) || !isTextFile(name) || bytes.length > MAX_FILE_BYTES) {
         continue
       }
       if (count >= MAX_FILES) {
@@ -50,7 +90,7 @@ const collectTextFiles = async (file: File): Promise<Array<{ path: string; conte
       }
       count += 1
       entries.push({
-        path: sanitizeEntryPath(rawName),
+        path: sanitizeEntryPath(name),
         content: new TextDecoder('utf-8').decode(bytes),
       })
     }
@@ -59,12 +99,13 @@ const collectTextFiles = async (file: File): Promise<Array<{ path: string; conte
     }
     return entries
   }
-  if (isTextFile(file.name)) {
+  const fileName = repairZipEntryName(file.name)
+  if (isTextFile(fileName) && !isMetadataPath(fileName)) {
     if (file.size > MAX_FILE_BYTES) {
       showToast({ key: 'referencesTooLarge', type: 'error' })
       return []
     }
-    return [{ path: sanitizeEntryPath(file.name), content: await file.text() }]
+    return [{ path: sanitizeEntryPath(fileName), content: await file.text() }]
   }
   showToast({ key: 'referencesUnsupported', type: 'error' })
   return []

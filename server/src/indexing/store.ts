@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { repairReferenceStorage } from '../agent/references.js'
 import { workspaces } from '../agent/workspace.js'
 import { env } from '../env.js'
 import { readSession } from '../sessions.js'
@@ -229,6 +230,8 @@ const isReferenceFile = (filePath: string): boolean => /\.(md|markdown|txt)$/i.t
 
 /** 构建/刷新当前会话 references/ 的分块索引 */
 const buildReferenceIndex = async (sessionId: string): Promise<void> => {
+  // 先把历史乱码路径修好，避免索引里写入旧路径导致 search_references 返回后 read_file 打不开
+  await repairReferenceStorage(sessionId).catch(() => undefined)
   const files = (await workspaces.listFilesRecursive(sessionId, 'references')).filter((file) =>
     isReferenceFile(file.path)
   )

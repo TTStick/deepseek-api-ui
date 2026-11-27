@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { chmod, chown, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, chown, mkdir, mkdtemp, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { env } from '../env.js'
 import { isEncrypted, readSecure, writeSecure } from '../storage/crypto.js'
@@ -300,6 +300,51 @@ export class WorkspaceManager {
   async deleteFile(sessionId: string, relativePath: string): Promise<void> {
     const target = this.resolve(sessionId, relativePath)
     await rm(target, { recursive: true, force: true })
+  }
+
+  /**
+   * 移动/重命名单个文件。加密文件的 AAD 绑定逻辑路径，
+   * 不能直接用 fs.rename，否则新路径会解密失败；这里解密后用新 AAD 重新写入。
+   */
+  async moveFile(sessionId: string, fromRelative: string, toRelative: string): Promise<void> {
+    const source = this.resolve(sessionId, fromRelative)
+    const target = this.resolve(sessionId, toRelative)
+    if (source === target) {
+      return
+    }
+    const info = await stat(source).catch(() => {
+      throw new WorkspaceError(`文件不存在：${fromRelative}`)
+    })
+    if (!info.isFile()) {
+      throw new WorkspaceError(`不是文件：${fromRelative}`)
+    }
+    const existing = await stat(target).catch(() => undefined)
+    if (existing) {
+      throw new WorkspaceError(`目标已存在：${toRelative}`)
+    }
+    const content = await readSecure(source, this.aad(sessionId, source))
+    await writeSecure(target, content, this.aad(sessionId, target))
+    await rm(source, { force: true })
+  }
+
+  /** 递归删除目录树下的空目录（保留 relativeDir 本身）。 */
+  async pruneEmptyDirs(sessionId: string, relativeDir: string): Promise<void> {
+    const root = this.resolve(sessionId, relativeDir)
+    const walk = async (dir: string): Promise<void> => {
+      const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
+      for (const entry of entries) {
+        if (entry.isDirectory() && !entry.isSymbolicLink()) {
+          await walk(path.join(dir, entry.name))
+        }
+      }
+      if (dir !== root) {
+        const remaining = await readdir(dir).catch(() => ['?'])
+        if (remaining.length === 0) {
+          await rmdir(dir).catch(() => undefined)
+        }
+      }
+    }
+    await walk(root)
   }
 
   /** 递归列出目录下的文件（资料索引/前置资料清单用；忽略符号链接，最多 5000 个） */
