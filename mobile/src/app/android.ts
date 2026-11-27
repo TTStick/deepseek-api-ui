@@ -63,6 +63,8 @@ export type AndroidBridge = {
   tsStatus?: () => string
   /** 内置 Tailscale：停止隧道 */
   tsStop?: () => void
+  /** 内置 Tailscale：用浏览器打开交互登录页 */
+  tsOpenLogin?: () => boolean
   /** 内置 Tailscale：读取已保存的 Auth Key */
   tsAuthKey?: () => string | null
   /** 内置 Tailscale：保存 Auth Key（传 null 清除） */

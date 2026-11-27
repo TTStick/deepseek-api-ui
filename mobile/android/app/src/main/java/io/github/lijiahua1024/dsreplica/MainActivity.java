@@ -769,6 +769,12 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public void tsStop() { TsTunnel.get(MainActivity.this).stop(); }
 
+        // 打开 Tailscale 交互登录页（浏览器登录，与官方客户端体验一致）
+        @JavascriptInterface
+        public boolean tsOpenLogin() {
+            return TsTunnel.get(MainActivity.this).openLogin(MainActivity.this);
+        }
+
         @JavascriptInterface
         public String tsAuthKey() { return TsTunnel.get(MainActivity.this).authKey(); }
 

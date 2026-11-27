@@ -1,7 +1,9 @@
 package io.github.lijiahua1024.dsreplica;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -55,6 +57,22 @@ final class TsTunnel {
             Tsproxy.start(stateDir, hostname, authKey == null ? "" : authKey, target);
         } catch (Exception error) {
             startError = error.getMessage() == null ? error.toString() : error.getMessage();
+        }
+    }
+
+    /** 用系统浏览器打开交互登录页（与官方客户端一致） */
+    boolean openLogin(Context context) {
+        String url = Tsproxy.loginURL();
+        if (url == null || url.isEmpty()) {
+            return false;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+            return true;
+        } catch (Exception ignored) {
+            return false;
         }
     }
 
