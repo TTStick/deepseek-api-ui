@@ -59,6 +59,17 @@ ANDROID_NDK_HOME=$HOME/Library/Android/sdk/ndk/28.2.13676358 \
 
 依赖：Go 1.27+、`gomobile`（`go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init`）、Android NDK。
 
+> **Android 运行时适配**（golang/go#40569、tailscale#9836）：`targetSdk >= 30` 的应用
+> 不允许 bind `NETLINK_ROUTE`，而 tsnet 启动依赖网卡枚举。做了三处处理：
+>
+> 1. 用 tailscale 的 `netmon.RegisterInterfaceGetter` 钩子 + [`wlynxg/anet`](https://github.com/wlynxg/anet)
+>    基于 ioctl 枚举网卡与地址，绕开 netlink（需要 `-ldflags=-checklinkname=0`）；
+> 2. `build-aar.sh` 把 `tailscale.com` 复制到 `.build/` 打容错补丁：`netmon.New` 失败时
+>    退回 `netmon.NewStatic()`（与官方 Android 客户端「netmon 失败就继续」一致），
+>    构建结束自动还原 `go.mod`；
+> 3. Go 侧为 tailscale 设置可写的 `HOME`/`TMPDIR`/`XDG_CACHE_HOME`，否则 logpolicy
+>    会因找不到落盘位置 panic（`no safe place found to store log state`）。
+
 ## 跨端会话同步
 
 手机端与网页端共用服务端会话库（`/app/data/sessions`），不是两套独立历史：

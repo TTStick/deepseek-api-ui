@@ -120,12 +120,12 @@ export const ApiKeyScreen = () => {
                       {t('tsSignIn')}
                     </button>
                   ) : null}
-                  {tunnelError || tunnel.error ? (
-                    <div role="alert" className={styles.error}>
-                      {tunnelError || tunnel.error}
-                    </div>
-                  ) : null}
                 </>
+              ) : null}
+              {tunnelError || tunnel.error ? (
+                <div role="alert" className={styles.error}>
+                  {tunnelError || tunnel.error}
+                </div>
               ) : null}
             </div>
           ) : null}
