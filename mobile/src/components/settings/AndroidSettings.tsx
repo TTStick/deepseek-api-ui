@@ -768,8 +768,8 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                 <div className={styles.serverForm}>
                   <p className={styles.serverHint}>
                     {tr(
-                      'App 内直接建立 Tailscale 连接，只有发往服务器的请求走隧道；不需要系统 VPN，也不接管其他流量。',
-                      'Runs a userspace Tailscale node inside the app. Only requests to the server use the tunnel — no system VPN.'
+                      'App 内直接建立 Tailscale 连接，只有发往服务器的请求走隧道；不需要系统 VPN，也不接管其他流量。开启后会常驻一个前台服务（通知栏可见），退到后台也能保持连接。',
+                      'Runs a userspace Tailscale node inside the app. Only requests to the server use the tunnel — no system VPN. A foreground service keeps it alive in the background.'
                     )}
                   </p>
                   <label className={styles.serverField}>

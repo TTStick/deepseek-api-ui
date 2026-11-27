@@ -53,6 +53,7 @@ public final class MainActivity extends Activity {
     private static final int CAMERA = 4;
     private static final int EXPORT_HISTORY = 5;
     private static final int WRITE_IMAGES = 7;
+    private static final int NOTIFICATIONS = 9;
     private WebView webView;
     private FrameLayout frame;
     private ApiKeyStore keys;
@@ -144,6 +145,15 @@ public final class MainActivity extends Activity {
             webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('android-update', {detail: "
                 + status + "}))", null));
         webView.loadUrl(HOME);
+    }
+
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                || granted(Manifest.permission.POST_NOTIFICATIONS)) {
+            return;
+        }
+        runOnUiThread(() -> requestPermissions(
+            new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATIONS));
     }
 
     private void primeAccessibility() {
@@ -757,6 +767,7 @@ public final class MainActivity extends Activity {
         // 内置 Tailscale（userspace 隧道）：不建立系统 VPN，只有本 App 到服务器的请求走隧道。
         @JavascriptInterface
         public String tsStart(String authKey, String target, String hostname) {
+            requestNotificationPermission();
             TsTunnel tunnel = TsTunnel.get(MainActivity.this);
             tunnel.start(authKey, target, hostname == null || hostname.isEmpty()
                 ? "wydeepseek" : hostname);

@@ -19,9 +19,12 @@ import io.github.lijiahua1024.dsreplica.tsproxy.Tsproxy;
 final class TsTunnel {
     private static final String PREFS = "myagent_tailscale";
     private static final String KEY_AUTH = "authKey";
+    private static final String KEY_TARGET = "target";
+    private static final String KEY_HOSTNAME = "hostname";
 
     private static TsTunnel instance;
 
+    private final Context app;
     private final SharedPreferences prefs;
     private final String stateDir;
     private volatile String startError = "";
@@ -34,6 +37,7 @@ final class TsTunnel {
     }
 
     private TsTunnel(Context context) {
+        app = context;
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         stateDir = context.getFilesDir() + "/tailscale";
     }
@@ -48,16 +52,62 @@ final class TsTunnel {
             : prefs.edit().putString(KEY_AUTH, value).commit();
     }
 
+    /** 启动隧道并拉起前台服务（保证后台存活） */
     synchronized void start(String authKey, String target, String hostname) {
+        rememberTarget(target, hostname);
+        startCore(authKey, target, hostname);
+        TunnelService.start(app, target, hostname);
+    }
+
+    /** 仅启动 tsnet（前台服务恢复时调用，避免重复 startService） */
+    synchronized void startCore(String authKey, String target, String hostname) {
         if (authKey != null && !authKey.isEmpty()) {
             setAuthKey(authKey);
         }
         startError = "";
         try {
-            Tsproxy.start(stateDir, hostname, authKey == null ? "" : authKey, target);
+            Tsproxy.start(stateDir,
+                hostname == null || hostname.isEmpty() ? "wydeepseek" : hostname,
+                authKey == null ? "" : authKey,
+                target == null ? "" : target);
         } catch (Exception error) {
             startError = error.getMessage() == null ? error.toString() : error.getMessage();
         }
+    }
+
+    void rememberTarget(String target, String hostname) {
+        if (target == null || target.isEmpty()) {
+            return;
+        }
+        prefs.edit()
+            .putString(KEY_TARGET, target)
+            .putString(KEY_HOSTNAME, hostname == null || hostname.isEmpty() ? "wydeepseek" : hostname)
+            .apply();
+    }
+
+    String savedTarget() {
+        return prefs.getString(KEY_TARGET, "");
+    }
+
+    String savedHostname() {
+        return prefs.getString(KEY_HOSTNAME, "wydeepseek");
+    }
+
+    /** 通知栏里的一行状态 */
+    String summary() {
+        String state = Tsproxy.state();
+        if ("ready".equals(state)) {
+            String ip = Tsproxy.selfIP();
+            return ip == null || ip.isEmpty() ? "隧道已就绪" : "隧道已就绪 · " + ip;
+        }
+        if ("starting".equals(state)) {
+            String login = Tsproxy.loginURL();
+            return login == null || login.isEmpty() ? "正在连接 Tailscale…" : "等待浏览器登录…";
+        }
+        if ("error".equals(state)) {
+            return "连接失败";
+        }
+        return "未连接";
     }
 
     /** 用系统浏览器打开交互登录页（与官方客户端一致） */
@@ -78,6 +128,7 @@ final class TsTunnel {
 
     void stop() {
         Tsproxy.stop();
+        TunnelService.stop(app);
         startError = "";
     }
 
