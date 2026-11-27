@@ -24,6 +24,10 @@ type Settings = {
   showRecalledMemory: boolean
   /** 上下文压缩开关 */
   compressionEnabled: boolean
+  /** 进阶：当前对话消息索引（按会话隔离） */
+  conversationIndexEnabled: boolean
+  /** 进阶：当前对话前置资料索引（按会话隔离） */
+  referenceIndexEnabled: boolean
   /** 聊天模型：默认 deepseek-flash（快），可切换 deepseek-v4-pro（更强） */
   model: ChatModel
   /** 界面字体大小：小 / 标准 / 大 / 特大 */
@@ -46,6 +50,8 @@ const KEYS = {
   memoryEnabled: 'chat-demo:memory-enabled',
   showRecalledMemory: 'chat-demo:show-recalled-memory',
   compressionEnabled: 'chat-demo:compression-enabled',
+  conversationIndexEnabled: 'chat-demo:conversation-index-enabled',
+  referenceIndexEnabled: 'chat-demo:reference-index-enabled',
   model: 'chat-demo:model',
   fontSize: 'chat-demo:font-size',
   collapseThinking: 'chat-demo:collapse-thinking',
@@ -126,6 +132,8 @@ export const useSettings = create<Settings>(() => ({
   memoryEnabled: read(KEYS.memoryEnabled) === 'true',
   showRecalledMemory: read(KEYS.showRecalledMemory) !== 'false',
   compressionEnabled: read(KEYS.compressionEnabled) !== 'false',
+  conversationIndexEnabled: read(KEYS.conversationIndexEnabled) === 'true',
+  referenceIndexEnabled: read(KEYS.referenceIndexEnabled) === 'true',
   model: read(KEYS.model) === 'deepseek-v4-pro' ? 'deepseek-v4-pro' : 'deepseek-flash',
   fontSize: initialFontSize(),
   collapseThinking: read(KEYS.collapseThinking) === 'true',
@@ -185,6 +193,16 @@ export const setShowRecalledMemory = (showRecalledMemory: boolean) => {
 export const setCompressionEnabled = (compressionEnabled: boolean) => {
   write(KEYS.compressionEnabled, String(compressionEnabled))
   useSettings.setState({ compressionEnabled })
+}
+
+export const setConversationIndexEnabled = (conversationIndexEnabled: boolean) => {
+  write(KEYS.conversationIndexEnabled, String(conversationIndexEnabled))
+  useSettings.setState({ conversationIndexEnabled })
+}
+
+export const setReferenceIndexEnabled = (referenceIndexEnabled: boolean) => {
+  write(KEYS.referenceIndexEnabled, String(referenceIndexEnabled))
+  useSettings.setState({ referenceIndexEnabled })
 }
 
 export const setModel = (model: ChatModel) => {

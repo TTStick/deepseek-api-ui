@@ -70,7 +70,7 @@ export const writeSessionMeta = (id: string, meta: SessionListMeta) => {
 export const clearSessionMeta = (id: string) => {
   const all = load()
   if (Object.hasOwn(all, id)) {
-    delete all[id]
+    Reflect.deleteProperty(all, id)
     save()
   }
 }

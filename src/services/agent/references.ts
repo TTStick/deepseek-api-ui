@@ -13,9 +13,11 @@ export type ReferenceItem = {
   preview: string
 }
 
-const MAX_ZIP_BYTES = 20 * 1024 * 1024
-const MAX_FILES = 50
-const MAX_FILE_BYTES = 2 * 1024 * 1024
+const MAX_ZIP_BYTES = 256 * 1024 * 1024
+const MAX_FILES = 200
+// 单个资料文件不再按 2MB 拒绝；64MB 是浏览器/JSON 传输的工程安全上限，
+// 阅读侧通过 read_file offset/limit 分块，不会整份塞进上下文。
+const MAX_FILE_BYTES = 64 * 1024 * 1024
 
 const isTextFile = (name: string): boolean => /\.(md|markdown|txt)$/i.test(name)
 

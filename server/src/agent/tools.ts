@@ -1,3 +1,4 @@
+import { searchConversation, searchReferences, type IndexOptions } from '../indexing/store.js'
 import { runPythonAsScript, type ExecResult } from './exec.js'
 import { SshManager, sshManager, type SshConfig } from './ssh.js'
 import { workspaces } from './workspace.js'
@@ -17,6 +18,8 @@ export type AgentToolName =
   | 'delete_file'
   | 'run_python'
   | 'run_script'
+  | 'search_conversation'
+  | 'search_references'
 
 export const AGENT_TOOLS: Array<{ name: AgentToolName; description: string; input_schema: unknown }> = [
   {
@@ -29,10 +32,19 @@ export const AGENT_TOOLS: Array<{ name: AgentToolName; description: string; inpu
   },
   {
     name: 'read_file',
-    description: '读取工作区内的文件内容',
+    description:
+      '按行分块读取工作区内的文件。默认读取前 800 行；大文件用 offset（从 1 开始的行号）和 limit 继续读取。',
     input_schema: {
       type: 'object',
-      properties: { path: { type: 'string', description: '相对工作区的文件路径' } },
+      properties: {
+        path: { type: 'string', description: '相对工作区的文件路径' },
+        offset: { type: 'number', description: '起始行号，从 1 开始，默认 1' },
+        limit: { type: 'number', description: '最多读取行数，默认 800，最大 5000' },
+        char_offset: {
+          type: 'number',
+          description: '仅超长单行时使用：从该行的第几个字符继续读取，返回值会给出下一段位置',
+        },
+      },
       required: ['path'],
     },
   },
@@ -82,6 +94,49 @@ export const AGENT_TOOLS: Array<{ name: AgentToolName; description: string; inpu
   },
 ]
 
+/**
+ * 进阶检索工具：只有对应索引开关打开时才注入模型。
+ * sessionId 由服务端固定传入，模型无法访问其他对话的索引。
+ */
+export const INDEX_TOOLS: Array<{
+  name: AgentToolName
+  description: string
+  input_schema: unknown
+}> = [
+  {
+    name: 'search_conversation',
+    description:
+      '搜索当前对话的历史消息（包括较早、已被上下文压缩的轮次）。只返回当前会话的片段，不跨对话。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '关键词或短语' },
+        limit: { type: 'number', description: '最多返回条数，默认 8，最大 20' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'search_references',
+    description:
+      '搜索当前对话 references/ 下的 Markdown 资料，返回文件路径和行号。找到后可用 read_file 的 offset/limit 读取原文。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '关键词或短语' },
+        limit: { type: 'number', description: '最多返回条数，默认 8，最大 20' },
+      },
+      required: ['query'],
+    },
+  },
+]
+
+export const agentToolsFor = (indexes?: IndexOptions) => [
+  ...AGENT_TOOLS,
+  ...(indexes?.conversation ? [INDEX_TOOLS[0]!] : []),
+  ...(indexes?.references ? [INDEX_TOOLS[1]!] : []),
+]
+
 export type ToolTarget = { kind: 'local' } | { kind: 'ssh'; config: SshConfig }
 
 export type ToolOutcome = {
@@ -95,6 +150,69 @@ const readArg = (input: unknown, key: string): string =>
   typeof (input as Record<string, unknown>)?.[key] === 'string'
     ? ((input as Record<string, unknown>)[key] as string)
     : ''
+
+const readNumber = (input: unknown, key: string, fallback: number): number => {
+  const value = (input as Record<string, unknown>)?.[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+/** SSH 目标没有流式分块接口时，按行切片；仅用于兼容远程资料读取 */
+const sliceTextRange = (
+  text: string,
+  offset: number,
+  limit: number,
+  maxChars: number
+): {
+  content: string
+  startLine: number
+  endLine: number
+  hasMore: boolean
+  nextOffset: number
+  nextCharOffset: number
+} => {
+  const lines = text.split(/\r?\n/)
+  const start = Math.max(1, Math.floor(offset))
+  const collected: string[] = []
+  let chars = 0
+  let hasMore = false
+  for (let index = start - 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? ''
+    if (collected.length >= limit || chars + line.length + 1 > maxChars) {
+      hasMore = true
+      break
+    }
+    collected.push(line)
+    chars += line.length + 1
+  }
+  return {
+    content: collected.join('\n'),
+    startLine: start,
+    endLine: collected.length > 0 ? start + collected.length - 1 : start - 1,
+    hasMore,
+    nextOffset: start + collected.length,
+    nextCharOffset: 0,
+  }
+}
+
+const formatRange = (range: {
+  content: string
+  startLine: number
+  endLine: number
+  hasMore: boolean
+  nextOffset: number
+  nextCharOffset?: number
+}): string => {
+  if (!range.content) {
+    return `[第 ${range.startLine} 行之后没有内容]`
+  }
+  const continueHint = range.nextCharOffset
+    ? `；该行超长，继续请传 offset=${range.nextOffset} 且 char_offset=${range.nextCharOffset}`
+    : `；继续读取请传 offset=${range.nextOffset}`
+  const footer = `\n\n[已读取第 ${range.startLine}-${range.endLine} 行${
+    range.hasMore ? continueHint : '（文件末尾）'
+  }]`
+  return `${range.content}${footer}`
+}
 
 const execResultText = (result: ExecResult): string => {
   const parts: string[] = []
@@ -123,11 +241,12 @@ const localTarget = (sessionId: string) => ({
   write: (rel: string, content: string) => workspaces.writeFile(sessionId, rel, content),
   remove: (rel: string) => workspaces.deleteFile(sessionId, rel),
   runCode: async (code: string, _sessionId: string) =>
-    runPythonAsScript(await workspaces.ensure(sessionId), code),
+    workspaces.withExecutionWorkspace(sessionId, (dir) => runPythonAsScript(dir, code)),
   runScript: async (script: string, args: string[]) => {
-    const dir = await workspaces.ensure(sessionId)
     const { runPythonScript } = await import('./exec.js')
-    return runPythonScript(dir, script, args)
+    return workspaces.withExecutionWorkspace(sessionId, (dir) =>
+      runPythonScript(dir, script, args)
+    )
   },
 })
 
@@ -178,7 +297,8 @@ const sshTarget = (sessionId: string, manager: SshManager, config: SshConfig) =>
 export class ToolExecutor {
   constructor(
     private readonly sessionId: string,
-    private readonly target: ToolTarget
+    private readonly target: ToolTarget,
+    private readonly indexes?: IndexOptions
   ) {}
 
   async execute(name: AgentToolName, input: unknown): Promise<ToolOutcome> {
@@ -196,8 +316,30 @@ export class ToolExecutor {
           return { content: content || '[空目录]', isError: false, artifacts: [] }
         }
         case 'read_file': {
-          const { content } = await ops.read(readArg(input, 'path'))
-          return { content: content.slice(0, 100_000), isError: false, artifacts: [] }
+          const rel = readArg(input, 'path')
+          if (!rel) {
+            return { content: '缺少 path 参数', isError: true, artifacts: [] }
+          }
+          const offset = Math.max(1, Math.floor(readNumber(input, 'offset', 1)))
+          const limit = Math.max(1, Math.min(5000, Math.floor(readNumber(input, 'limit', 800))))
+          const charOffset = Math.max(0, Math.floor(readNumber(input, 'char_offset', 0)))
+          if (this.target.kind === 'local') {
+            const range = await workspaces.readFileRange(
+              this.sessionId,
+              rel,
+              offset,
+              limit,
+              120_000,
+              charOffset
+            )
+            return { content: formatRange(range), isError: false, artifacts: [] }
+          }
+          const { content } = await ops.read(rel)
+          return {
+            content: formatRange(sliceTextRange(content, offset, limit, 120_000)),
+            isError: false,
+            artifacts: [],
+          }
         }
         case 'write_file': {
           const rel = readArg(input, 'path')
@@ -251,6 +393,60 @@ export class ToolExecutor {
           return {
             content: execResultText(result),
             isError: result.exitCode !== 0,
+            artifacts: [],
+          }
+        }
+        case 'search_conversation': {
+          if (!this.indexes?.conversation) {
+            return { content: '当前对话未开启对话索引', isError: true, artifacts: [] }
+          }
+          const query = readArg(input, 'query')
+          if (!query.trim()) {
+            return { content: '缺少 query 参数', isError: true, artifacts: [] }
+          }
+          const hits = await searchConversation(
+            this.sessionId,
+            query,
+            readNumber(input, 'limit', 8)
+          )
+          return {
+            content:
+              hits.length > 0
+                ? hits
+                    .map(
+                      (hit) =>
+                        `--- ${hit.role}${hit.createdAt ? ` @ ${new Date(hit.createdAt).toISOString()}` : ''} (${hit.messageId}) ---\n${hit.snippet}`
+                    )
+                    .join('\n\n')
+                : '当前对话中没有找到匹配内容',
+            isError: false,
+            artifacts: [],
+          }
+        }
+        case 'search_references': {
+          if (!this.indexes?.references) {
+            return { content: '当前对话未开启资料索引', isError: true, artifacts: [] }
+          }
+          const query = readArg(input, 'query')
+          if (!query.trim()) {
+            return { content: '缺少 query 参数', isError: true, artifacts: [] }
+          }
+          const hits = await searchReferences(
+            this.sessionId,
+            query,
+            readNumber(input, 'limit', 8)
+          )
+          return {
+            content:
+              hits.length > 0
+                ? hits
+                    .map(
+                      (hit) =>
+                        `--- ${hit.path}:${hit.startLine}-${hit.endLine} ---\n${hit.snippet}`
+                    )
+                    .join('\n\n')
+                : '资料中没有找到匹配内容',
+            isError: false,
             artifacts: [],
           }
         }

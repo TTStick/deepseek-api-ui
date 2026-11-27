@@ -96,6 +96,14 @@ flowchart LR
 
 > `护头` 与 `尾部` 原样保留，只有中段被结构化摘要替换；下一次压缩会把上一版摘要一起迭代。
 
+### 进阶检索（可选）
+
+- **对话索引**：为当前对话的历史消息建立 SQLite FTS 索引，Agent 可搜索较早/已被压缩的轮次。
+- **资料索引**：为当前对话的 `references/` 资料建立 Markdown 分块索引，搜索返回文件路径与行号，再用 `read_file` 的 `offset/limit` 回读。
+- 两个开关相互独立，位于「设置 → 记忆与上下文」，并需要开启 Agent 模式。
+- **对话隔离**：索引文件按 sessionId 哈希命名，工具只接收当前 sessionId，不能跨对话查询。
+- 单文件资料不再按 2MB 拒绝；资料读取改为分块，大文件不会整份塞进上下文。
+
 ### Agent 模式（服务端执行）
 
 - 会话级 Agent 开关；开启后该会话拥有独立工作区。
@@ -193,6 +201,7 @@ sequenceDiagram
 | 自我检索 / 记忆召回 | Hermes `agent/memory_provider.py`、`agent/memory_context.py`、`plugins/memory/query_rewrite.py`、`session_rules/turns.py`；[NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | `server/src/memory/{honcho,queryRewrite,trivial,fence}.ts` | Python → TypeScript 行为级移植：trivial 判定、查询改写正则、`<memory-context>` 围栏、bullet 去重、cadence 退避均对齐；去掉多 provider/cron，单用户简化 |
 | 上下文压缩 | Hermes `agent/context_compressor.py`（[固定版本链接](https://github.com/NousResearch/hermes-agent/blob/b98c388a/agent/context_compressor.py)） | `server/src/compression/{window,prompt,compress,tokens}.ts` | 移植三段式窗口、50% 阈值、64K 下限、迭代摘要、`[REDACTED]` 凭据红线、静态回退摘要与失败冷却；压缩状态由前端会话元数据 + 服务端内存共同承载 |
 | 长对话管理 | Hermes 压缩归档 / token 账本语义 | `src/services/chat/usage.ts`、`server/src/usage.ts`、消息列表压缩分隔条 | 历史完整保留展示，模型投影跳过归档段；逐轮累计 usage，压缩轮数随会话同步 |
+| 对话 / 资料索引 | Goose `crates/goose/src/session/chat_history_search.rs`（会话消息关键词检索）、`services/ask-ai-bot/utils/ai/chunk-markdown.ts`（Markdown 分块）、`services/ask-ai-bot/utils/ai/tools/codebase-search.ts`（路径/行号片段） | `server/src/indexing/{store,chunk}.ts`、`server/src/agent/tools.ts`、`server/src/agent/workspace.ts` | 改为 Node 内置 SQLite FTS5，每个 session 独立索引；新增 `search_conversation` / `search_references` 工具；`read_file` 支持 offset/limit 分块回读 |
 | Honcho 记忆后端 | [Plastic Labs Honcho](https://github.com/plastic-labs/honcho) 的 `hermes-plugin-honcho` | `server/src/memory/honcho.ts`、`server/src/honcho/api.ts`、`compose.yaml` 的 honcho profile | 移植 session/peer 建模、context 层 + dialectic 层、批量消息写入、conclusions；改为对齐 Honcho v3 REST 路由的轻量客户端，单用户、embedding 默认关闭 |
 | 回溯重聊 | Hermes `/rewind` 语义 | `src/services/chat/store.ts`、`mobile/src/services/chat/store.ts` | 截断目标消息之后的全部内容并重新提问；Web 与手机行为一致 |
 | Agent 工具循环 | Claude Code 的 QueryEngine `tool_use / tool_result` 循环与 session-scoped cwd（[anthropics/claude-code](https://github.com/anthropics/claude-code)，概念参考） | `server/src/agent/{loop,tools,workspace,ssh}.ts` | 非源码移植：用 TypeScript 重写工具协议、工作区路径校验、Python 隔离执行、SSH/SFTP；最多 10 轮工具往返 |
@@ -309,6 +318,9 @@ cd mobile/android
 | `ALLOWED_MODELS` | `deepseek-flash,deepseek-v4-pro` | 允许请求的模型白名单 |
 | `CORS_ORIGINS` | 手机 WebView + 本地预览 | 额外允许的跨域来源，逗号分隔 |
 | `HONCHO_BASE_URL` / `HONCHO_API_KEY` | 空 / `local` | 自托管 Honcho 地址与凭据 |
+| `DATA_ENCRYPTION_KEY` | 空 | 可选：直接注入 32 字节主密钥（64 位 hex / base64）；优先级高于密钥文件 |
+| `DATA_ENCRYPTION_KEY_FILE` | `/app/secrets/encryption.key` | 密钥文件路径；不设置环境密钥时首次启动自动生成 |
+| `EXEC_TMP_ROOT` | `/run/myagent-exec` | Python 执行的临时解密目录，必须是 tmpfs |
 
 完整的服务端变量说明见 [server/.env.example](server/.env.example)；公网清单见 [SECURITY.md](SECURITY.md)。
 
@@ -318,11 +330,15 @@ cd mobile/android
 | --- | --- | --- |
 | Web 会话、草稿、附件原件 | 浏览器 IndexedDB + localStorage | 通过服务端同步会话；附件原件不同步 |
 | Android 会话 | 本地 SQLite + 侧车元数据 | 通过服务端同步 |
-| 服务端会话 | `myagent_data` 卷 `/app/data/sessions/` | 两端共享 |
-| 访问密码哈希 / 会话密钥 | `myagent_data` 卷 `/app/data/` | 服务端 |
-| 用量样本 | `myagent_data` 卷 `/app/data/usage-state.json` | 两端读取同一份 |
-| Agent 工作区 | `myagent_workspaces` 卷 `/app/workspaces/` | 服务端；两端可查看 |
-| Honcho 记忆 | `myagent_honcho_pgdata` / `myagent_honcho_redis` 卷 | 服务端 |
+| 服务端会话 / 摘要 | `myagent_data` 卷 `/app/data/sessions/`（AES-256-GCM 密文） | 两端共享 |
+| 参考资料 / 工作区 | `myagent_workspaces` 卷 `/app/workspaces/`（密文） | 服务端；两端可查看 |
+| 检索索引 | `myagent_data` 卷 `/app/data/indexes/`（密文；查询时在内存解密） | 服务端 |
+| 加密主密钥 | `myagent_secrets` 卷 `/app/secrets/encryption.key` | 仅服务端 |
+| 访问密码哈希 / 会话签名密钥 | `myagent_data` 卷 `/app/data/`（签名密钥加密） | 服务端 |
+| 用量样本 | `myagent_data` 卷 `/app/data/usage-state.json`（密文） | 两端读取同一份 |
+| Honcho 记忆 | `myagent_honcho_pgdata` / `myagent_honcho_redis` 卷 | 服务端；**仍是明文，需卷级加密** |
+
+服务端会话、压缩摘要、参考资料、Agent 工作区文件和 SQLite FTS 索引都以 **AES-256-GCM** 加密落盘；检索时解密到进程内存，Python 执行时解密到 tmpfs 并以无特权 UID 运行。密钥与数据分卷保存，首次启动自动生成；**密钥丢失后数据无法恢复**，请单独备份 `myagent_secrets` 卷。浏览器 IndexedDB、手机 SQLite 以及 Honcho 的 Postgres/Redis 不在这套应用层加密范围内。
 
 同步采用 **last-write-wins**：客户端写入 `updatedAt`，服务端只接受更新的版本；删除写墓碑，客户端拉取后删除本地副本并清理工作区。服务端会对会话做结构校验（消息数组、有限时间戳、嵌套 ≤200 层、≤2 万条消息），并剥离 `ssh` 凭据。
 
@@ -373,7 +389,8 @@ cd mobile/android
 - 单用户访问密码：scrypt 哈希、HMAC 签名 Cookie / Bearer token、登录失败限速、改密轮换密钥、登出撤销。
 - 公网部署：`REQUIRE_AUTH=true`、HTTPS（Caddy 自动证书）、只暴露 80/443、不要映射 8090/3000。
 - 接口防护：CORS 白名单、CSRF Origin 校验、聊天/压缩/SSH 限速、SSRF 内网地址阻断、错误信息泛化、会话结构校验。
-- Agent 模式本质是**服务端代码执行**：当前在容器内以 root 运行，只建议自己使用；公网高安全场景应拆分独立 sandbox runner。
+- **静态加密**：会话、资料、工作区和检索索引使用 AES-256-GCM 密文落盘，密钥独立存放；迁移后旧明文文件会被原地覆盖。密钥丢失不可恢复，备份见 [DOCKER.md](DOCKER.md)。
+- Agent 模式本质是**服务端代码执行**：Python 子进程已降权到 UID 10001，读不到加密密钥；但 server 本体仍以 root 运行，公网高安全场景仍建议拆分独立 sandbox runner。
 - 2026-11 已用 ARTEX 2.2.0 对隔离实例做授权自测，修复了进程崩溃、XFF 限速绕过、SSH SSRF、CSRF/Origin、会话校验等问题，详见 [SECURITY.md](SECURITY.md)。
 
 **公网前最少做三件事**：设置强 `ACCESS_PASSWORD`、`REQUIRE_AUTH=true`、只通过 HTTPS 暴露；然后按 [SECURITY.md](SECURITY.md) 的清单逐项检查。

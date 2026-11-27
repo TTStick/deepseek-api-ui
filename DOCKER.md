@@ -47,10 +47,26 @@ docker compose ps
 
 服务端新增会话库，网页端与手机端共享同一份对话：
 
-- 数据目录：`myagent_data` 卷下的 `/app/data/sessions/`（每个会话一个 JSON + `.meta.json` 摘要），删除墓碑在 `/app/data/session-tombstones.json`。
+- 数据目录：`myagent_data` 卷下的 `/app/data/sessions/`（每个会话一个加密 JSON + 加密 `.meta.json` 摘要），删除墓碑在 `/app/data/session-tombstones.json`。
 - 接口：`GET /api/sessions`（列表 + 墓碑）、`GET/PUT /api/sessions/:id`、`DELETE /api/sessions/:id`；删除会话同时清理对应 agent 工作区。
 - 客户端：启动、窗口回到前台、每 30 秒拉取；本地保存后约 1 秒推送。`updatedAt` 后写覆盖；标题/分组/归档/压缩状态变化也会同步。
 - 删除会写墓碑并同步到另一端；离线删除记录在本地，恢复网络后补发。未连接服务器时完全本地可用，连上后自动补传。
+
+## 服务端静态加密
+
+- **加密范围**：会话正文/摘要、压缩摘要、参考资料、Agent 工作区文件、SQLite FTS 索引、用量样本、会话签名密钥。均为 AES-256-GCM 密文，文件头为 `MAG1`；直接 `cat`/`strings` 看不到正文。
+- **密钥**：首次启动生成 `myagent_secrets` 卷中的 `/app/secrets/encryption.key`（0600），或通过 `DATA_ENCRYPTION_KEY` 注入 32 字节密钥。密钥和数据分卷，避免备份数据时连带泄露。
+- **迁移**：升级后首次启动会自动把历史明文文件原地加密，日志会打印迁移数量；重复启动为 0。
+- **备份**：必须单独备份 `myagent_secrets` 卷；**密钥丢失后已加密数据无法恢复**。建议把密钥放进密码管理器或离线介质：
+  ```sh
+  # 在项目目录执行；生成的 myagent-key.tgz 请离线保管，不要随数据备份放在同一块盘
+  docker run --rm -v myagent_secrets:/secrets -v "$PWD":/backup alpine \
+    tar czf /backup/myagent-key.tgz -C /secrets .
+  ```
+  恢复时把归档解回卷：`docker run --rm -v myagent_secrets:/secrets -v "$PWD":/backup alpine tar xzf /backup/myagent-key.tgz -C /secrets`。
+- **旧备份/快照**：加密前产生的 Docker 卷备份、NAS 快照仍可能包含明文；启用后应删除或轮换这些旧快照。
+- **边界**：服务端运行时仍需解密（Agent/检索/压缩），root 进程可读密钥；Honcho 的 Postgres/Redis 仍是明文；浏览器 IndexedDB / 手机 SQLite 也是设备本地明文。要覆盖 Honcho 和整机，需要 NAS 卷级加密（ZFS/LUKS）或停用敏感会话的记忆写入。
+- **Python 隔离**：`run_python` 的临时明文放在 tmpfs（`/run/myagent-exec`），子进程降权到 UID 10001，无法读取 root 0600 的密钥和会话密文。
 
 ## 消耗统计（余额 / Token / 速度）
 
@@ -60,7 +76,7 @@ docker compose ps
 - 生成速度：按回复的 `elapsedMs` 计算平均与最近 20 条输出速度（tokens/s）。
 - 余额：服务端调用 DeepSeek 官方 `GET /user/balance`（使用 `DEEPSEEK_API_KEY`），带 30 秒缓存，可手动刷新。
 - 平均成本：按余额变化与 token 增量估算每百万 token 成本；余额按分计费且可能有延迟，需累计约 2 万 tokens 的样本后才展示，仅供参考。
-- 接口：`GET /api/usage?tzOffset=-480[&refresh=1]`；余额样本保存在数据卷 `/app/data/usage-state.json`。
+- 接口：`GET /api/usage?tzOffset=-480[&refresh=1]`；余额样本加密保存在数据卷 `/app/data/usage-state.json`。
 
 ## Agent 模式
 

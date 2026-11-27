@@ -107,7 +107,8 @@ const pushSession = async (id: string): Promise<void> => {
   }
   try {
     // SSH 凭据只留在网页端本机，不经过手机，也不上传
-    const { ssh: _ssh, ...payload } = session as Session & { ssh?: unknown }
+    const payload = { ...session } as Record<string, unknown>
+    delete payload.ssh
     const response = await api(`/sessions/${encodeURIComponent(id)}`, {
       method: 'PUT',
       body: JSON.stringify({ session: payload }),
@@ -170,7 +171,8 @@ const applyRemote = async (session: Session) => {
     return
   }
   // SSH 凭据不下发到手机端
-  const { ssh: _ssh, ...clean } = session as Session & { ssh?: unknown }
+  const clean = { ...session }
+  delete (clean as { ssh?: unknown }).ssh
   await db.saveSession(clean, [])
   applySyncedSession(clean)
 }

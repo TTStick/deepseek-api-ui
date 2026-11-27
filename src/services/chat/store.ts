@@ -1479,6 +1479,10 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
               enabled: getSession(sessionId)?.agentEnabled ?? false,
               ssh: getSession(sessionId)?.ssh,
             },
+            indexes: {
+              conversation: useSettings.getState().conversationIndexEnabled,
+              references: useSettings.getState().referenceIndexEnabled,
+            },
           },
           controller.signal
         )

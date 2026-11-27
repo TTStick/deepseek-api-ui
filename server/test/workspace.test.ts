@@ -1,12 +1,17 @@
 import { mkdtemp, readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { WorkspaceManager, WorkspaceError } from '../src/agent/workspace.js'
+import { isEncrypted, setEncryptionKeyForTests } from '../src/storage/crypto.js'
 
 describe('WorkspaceManager', () => {
   let root: string
   let workspaces: WorkspaceManager
+
+  beforeAll(() => {
+    setEncryptionKeyForTests(Buffer.alloc(32, 3))
+  })
 
   beforeEach(async () => {
     root = await mkdtemp(path.join(os.tmpdir(), 'myagent-ws-test-'))
@@ -42,11 +47,23 @@ describe('WorkspaceManager', () => {
     await expect(workspaces.readFile('s1', '/etc/passwd')).rejects.toBeInstanceOf(WorkspaceError)
   })
 
-  it('写入实际落在会话目录内', async () => {
+  it('写入实际落在会话目录内，但磁盘上是密文', async () => {
     const dir = await workspaces.ensure('s1')
     await workspaces.writeFile('s1', 'a.txt', 'hello')
-    const content = await readFile(path.join(dir, 'a.txt'), 'utf8')
-    expect(content).toBe('hello')
+    const raw = await readFile(path.join(dir, 'a.txt'))
+    expect(isEncrypted(raw)).toBe(true)
+    expect(raw.toString('utf8')).not.toContain('hello')
+    expect((await workspaces.readFile('s1', 'a.txt')).content).toBe('hello')
+  })
+
+  it('加密文件也能按行/字符窗口读取', async () => {
+    const long = `${'x'.repeat(200)}\n第二行\n第三行`
+    await workspaces.writeFile('s1', 'range.txt', long, 10_000)
+    const first = await workspaces.readFileRange('s1', 'range.txt', 1, 2, 50)
+    expect(first.content).toBe(`${'x'.repeat(49)}`)
+    expect(first.nextCharOffset).toBe(49)
+    const second = await workspaces.readFileRange('s1', 'range.txt', 1, 2, 50, 200)
+    expect(second.content).toContain('第二行')
   })
 
   it('cleanup 删除整个工作区（幂等）', async () => {

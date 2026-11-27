@@ -101,7 +101,7 @@ export const registerAgent = (app: FastifyInstance) => {
   })
 
   /** 前置参考资料：写入一批（前端解压 zip 后上传文本） */
-  app.post('/agent/references', async (request, reply) => {
+  app.post('/agent/references', { bodyLimit: 256 * 1024 * 1024 }, async (request, reply) => {
     const body = request.body as { sessionId?: string; files?: Array<{ path: string; content: string }> }
     if (!body.sessionId || !Array.isArray(body.files)) {
       return reply.code(400).send({ error: { message: '缺少 sessionId 或 files' } })

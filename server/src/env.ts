@@ -1,8 +1,12 @@
+import path from 'node:path'
+
 /** 服务端环境配置：DeepSeek 直连凭据与 Honcho 自托管地址 */
 const read = (name: string, fallback: string): string => {
   const value = process.env[name]
   return typeof value === 'string' && value !== '' ? value : fallback
 }
+
+const dataRoot = read('DATA_ROOT', '/app/data')
 
 export const env = {
   port: Number(process.env.PORT ?? 3000),
@@ -18,7 +22,21 @@ export const env = {
   /** python 解释器路径（server 镜像内置） */
   pythonPath: read('PYTHON_PATH', 'python3'),
   /** 访问密码与会话密钥的持久化目录 */
-  dataRoot: read('DATA_ROOT', '/app/data'),
+  dataRoot,
+  /**
+   * 静态加密主密钥：优先读 DATA_ENCRYPTION_KEY（base64/hex/32 字节原文），
+   * 否则从 DATA_ENCRYPTION_KEY_FILE 读取；都不存在时首次启动生成。
+   */
+  dataEncryptionKey: read('DATA_ENCRYPTION_KEY', ''),
+  dataEncryptionKeyFile: read(
+    'DATA_ENCRYPTION_KEY_FILE',
+    path.join(dataRoot, 'encryption.key')
+  ),
+  /** Python 执行时的临时解密目录；默认使用容器内存盘，避免明文落盘 */
+  execTmpRoot: read('EXEC_TMP_ROOT', '/dev/shm'),
+  /** Python 子进程使用的无特权 UID/GID（容器以 root 启动时生效，隔离加密密钥） */
+  agentExecUid: Math.max(1, Number(read('AGENT_EXEC_UID', '10001')) || 10001),
+  agentExecGid: Math.max(1, Number(read('AGENT_EXEC_GID', '10001')) || 10001),
   /** 初始访问密码（仅首次启动、尚未通过界面设置时生效） */
   accessPassword: read('ACCESS_PASSWORD', ''),
   /** 公网部署：强制要求已设置访问密码（未设置时拒绝所有业务接口） */

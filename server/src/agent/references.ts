@@ -14,8 +14,9 @@ export type ReferenceItem = {
   preview: string
 }
 
-const MAX_FILES = 50
-const MAX_TOTAL_BYTES = 20 * 1024 * 1024
+const MAX_FILES = 200
+const MAX_TOTAL_BYTES = 256 * 1024 * 1024
+const MAX_FILE_BYTES = 64 * 1024 * 1024
 const INLINE_LIMIT = 1500 // 单个文件内联全文的字符上限
 const PREVIEW_CHARS = 200
 const PROMPT_BUDGET = 6000 // 注入 system prompt 的总字符预算
@@ -41,32 +42,33 @@ export const saveReferences = async (
   let count = 0
   for (const file of entries) {
     const size = Buffer.byteLength(file.content, 'utf8')
-    if (size > 2 * 1024 * 1024 || total + size > MAX_TOTAL_BYTES) {
+    if (size > MAX_FILE_BYTES || total + size > MAX_TOTAL_BYTES) {
       continue
     }
     total += size
-    await workspaces.writeFile(sessionId, `${REFERENCES_DIR}/${sanitizePath(file.path)}`, file.content)
+    await workspaces.writeFile(
+      sessionId,
+      `${REFERENCES_DIR}/${sanitizePath(file.path)}`,
+      file.content,
+      MAX_FILE_BYTES
+    )
     count += 1
   }
   return { count }
 }
 
-/** 列出现有资料（含预览） */
+/** 列出现有资料（含预览）；递归包含 zip 内的子目录 */
 export const listReferences = async (sessionId: string): Promise<ReferenceItem[]> => {
   const entries = await workspaces
-    .listDir(sessionId, REFERENCES_DIR)
-    .catch(() => [] as Array<{ name: string; type: 'file' | 'dir'; size?: number }>)
+    .listFilesRecursive(sessionId, REFERENCES_DIR)
+    .catch(() => [] as Array<{ path: string; size: number; mtimeMs: number }>)
   const items: ReferenceItem[] = []
   for (const entry of entries) {
-    if (entry.type !== 'file') {
-      continue
-    }
-    const path = `${REFERENCES_DIR}/${entry.name}`
     const preview = await workspaces
-      .readFile(sessionId, path)
+      .readFileRange(sessionId, entry.path, 1, 20, PREVIEW_CHARS)
       .then(({ content }) => content.replace(/\s+/g, ' ').slice(0, PREVIEW_CHARS))
       .catch(() => '')
-    items.push({ path, size: entry.size ?? 0, preview })
+    items.push({ path: entry.path, size: entry.size, preview })
   }
   return items
 }
@@ -90,7 +92,10 @@ export const buildReferencesPrompt = async (sessionId: string): Promise<string> 
     if (budget >= PROMPT_BUDGET) {
       break
     }
-    const { content } = await workspaces.readFile(sessionId, item.path).catch(() => ({ content: '' }))
+    // 大文件不再整份载入 prompt：只读取开头一小段，完整内容通过 read_file 分块读取
+    const { content } = await workspaces
+      .readFileRange(sessionId, item.path, 1, 80, INLINE_LIMIT + 1)
+      .catch(() => ({ content: '' }))
     if (!content) {
       continue
     }
@@ -101,7 +106,7 @@ export const buildReferencesPrompt = async (sessionId: string): Promise<string> 
       body = text
     } else {
       body = `${text.slice(0, 300).trim()} …`
-      hint = `（内容较长，需用 read_file 工具读取 ${item.path} 全文）`
+      hint = `（内容较长，先用 read_file 的 offset/limit 分块读取 ${item.path}，或开启资料索引后直接检索）`
     }
     const section = `### ${item.path}\n${body}\n${hint}`
     sections.push(section)

@@ -1,4 +1,5 @@
 import Fastify, { type FastifyError } from 'fastify'
+import { cleanupExecutionTmp } from './agent/workspace.js'
 import { initAuth, isPasswordSet } from './auth.js'
 import { env } from './env.js'
 import { registerAgent } from './routes/agent.js'
@@ -10,6 +11,8 @@ import { registerMobile } from './routes/mobile.js'
 import { registerSessions } from './routes/sessions.js'
 import { registerUsage } from './routes/usage.js'
 import { scrubSessionSecrets } from './sessions.js'
+import { initEncryption } from './storage/crypto.js'
+import { migrateAtRest } from './storage/migrate.js'
 
 // 单个坏请求绝不能拖垮整个服务：后台任务/第三方调用产生的拒绝只记录。
 // 未捕获异常同样兜底（Fastify 已捕获路由内的同步/异步异常，这里只处理漏网情况）。
@@ -77,6 +80,29 @@ app.register(registerUsage, { prefix: '/api' })
 
 const start = async () => {
   try {
+    const crypto = await initEncryption()
+    app.log.info(
+      { source: crypto.source },
+      crypto.source === 'generated'
+        ? '已生成新的服务端数据加密密钥；请立即备份 DATA_ENCRYPTION_KEY_FILE，丢失后无法恢复数据'
+        : '服务端数据加密已启用'
+    )
+    const staleExecDirs = await cleanupExecutionTmp()
+    if (staleExecDirs > 0) {
+      app.log.info({ staleExecDirs }, '已清理异常退出遗留的 Python 临时明文目录')
+    }
+    const migrated = await migrateAtRest()
+    if (
+      migrated.sessions ||
+      migrated.metas ||
+      migrated.tombstones ||
+      migrated.workspaceFiles ||
+      migrated.indexes ||
+      migrated.usageState ||
+      migrated.authSecret
+    ) {
+      app.log.info(migrated, '历史明文数据已完成加密迁移')
+    }
     await scrubSessionSecrets()
     if (!(await isPasswordSet())) {
       app.log.warn(

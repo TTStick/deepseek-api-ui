@@ -2,6 +2,12 @@ import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { env } from './env.js'
+import {
+  isEncrypted,
+  readSecureText,
+  writeSecure,
+  writeSecureText,
+} from './storage/crypto.js'
 
 /**
  * 单用户访问密码：
@@ -14,6 +20,7 @@ import { env } from './env.js'
 const SESSION_COOKIE = 'myagent_session'
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60 // 30 天
 const SCRYPT_KEYLEN = 64
+const SECRET_AAD = 'auth-session-secret'
 
 type StoredAuth = {
   salt: string
@@ -142,7 +149,7 @@ const sessionSecret = async (): Promise<string> => {
   }
   await ensureDir()
   try {
-    cachedSecret = (await readFile(paths().secretFile, 'utf8')).trim()
+    cachedSecret = (await readSecureText(paths().secretFile, SECRET_AAD)).trim()
     if (cachedSecret) {
       return cachedSecret
     }
@@ -150,8 +157,24 @@ const sessionSecret = async (): Promise<string> => {
     // 首次启动
   }
   cachedSecret = randomBytes(32).toString('hex')
-  await writeFile(paths().secretFile, cachedSecret, { mode: 0o600 })
+  await writeSecureText(paths().secretFile, cachedSecret, SECRET_AAD, 0o600)
   return cachedSecret
+}
+
+/** 启动时把历史明文的会话签名密钥加密（不轮换，避免所有设备掉线）。 */
+export const migrateAuthSecret = async (): Promise<boolean> => {
+  const file = paths().secretFile
+  const raw = await readFile(file).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') {
+      return undefined
+    }
+    throw error
+  })
+  if (!raw || isEncrypted(raw)) {
+    return false
+  }
+  await writeSecure(file, raw, SECRET_AAD)
+  return true
 }
 
 /** 首次启动时若配置了 ACCESS_PASSWORD 且尚未设置，自动写入 */
@@ -200,7 +223,7 @@ export const issueSession = async (ttlSeconds = SESSION_TTL_SECONDS): Promise<{
 export const rotateSessionSecret = async (): Promise<void> => {
   await ensureDir()
   cachedSecret = randomBytes(32).toString('hex')
-  await writeFile(paths().secretFile, cachedSecret, { mode: 0o600 })
+  await writeSecureText(paths().secretFile, cachedSecret, SECRET_AAD, 0o600)
 }
 
 export const verifySession = async (token: string | undefined): Promise<boolean> => {

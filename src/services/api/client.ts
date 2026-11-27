@@ -227,6 +227,8 @@ export type ChatStreamInput = {
       remotePath: string
     }
   }
+  /** 进阶检索：按当前会话建立的对话索引 / 资料索引 */
+  indexes?: { conversation?: boolean; references?: boolean }
 }
 
 const readStreamStatus = (payload: unknown): number | undefined => {

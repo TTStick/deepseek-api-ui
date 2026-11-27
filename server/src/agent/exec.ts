@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { writeFile } from 'node:fs/promises'
+import { chown, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { env } from '../env.js'
 
@@ -27,10 +27,23 @@ const run = (
   stdin?: string
 ): Promise<ExecResult> =>
   new Promise((resolve) => {
+    // 容器以 root 启动时，把 Python 降到无特权 UID：即使模型生成恶意代码，
+    // 也读不到 root 0600 的加密密钥和会话密文。非 root 环境不设置（会 EPERM）。
+    const privilege =
+      typeof process.getuid === 'function' && process.getuid() === 0
+        ? { uid: env.agentExecUid, gid: env.agentExecGid }
+        : {}
     const child = execFile(
       env.pythonPath,
       args,
-      { cwd, env: pythonExecEnv(), timeout: EXEC_TIMEOUT_MS, maxBuffer: OUTPUT_LIMIT, killSignal: 'SIGKILL' },
+      {
+        cwd,
+        env: pythonExecEnv(),
+        timeout: EXEC_TIMEOUT_MS,
+        maxBuffer: OUTPUT_LIMIT,
+        killSignal: 'SIGKILL',
+        ...privilege,
+      },
       (error, stdout, stderr) => {
         resolve({
           stdout: String(stdout),
@@ -95,7 +108,11 @@ export const runPythonAsScript = async (
   code: string,
   scriptName = 'agent_script.py'
 ): Promise<ExecResult> => {
-  await writeFile(path.join(workspaceDir, scriptName), code, 'utf8')
+  const script = path.join(workspaceDir, scriptName)
+  await writeFile(script, code, { encoding: 'utf8', mode: 0o600 })
+  if (typeof process.getuid === 'function' && process.getuid() === 0) {
+    await chown(script, env.agentExecUid, env.agentExecGid).catch(() => undefined)
+  }
   return run([scriptName], workspaceDir)
 }
 
@@ -110,6 +127,8 @@ export const pythonExecEnv = (): NodeJS.ProcessEnv => {
   }
   return {
     ...env,
+    // 降权后的 UID 不能读 /root；给 Python 一个可写的 HOME
+    HOME: '/tmp',
     MPLBACKEND: 'Agg',
     PYTHONUNBUFFERED: '1',
     PYTHONDONTWRITEBYTECODE: '1',

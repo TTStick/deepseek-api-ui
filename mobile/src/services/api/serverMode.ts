@@ -19,6 +19,10 @@ export type ServerConfig = {
   agent: boolean
   /** 是否启用长期记忆 */
   memory: boolean
+  /** 进阶：当前对话消息索引 */
+  conversationIndex: boolean
+  /** 进阶：当前对话资料索引 */
+  referenceIndex: boolean
 }
 
 const KEY = 'myagent:server-config'
@@ -36,12 +40,23 @@ const read = (): ServerConfig => {
         token: parsed.token,
         agent: parsed.agent !== false,
         memory: parsed.memory !== false,
+        conversationIndex: parsed.conversationIndex === true,
+        referenceIndex: parsed.referenceIndex === true,
       }
     }
   } catch {
     // 忽略损坏配置
   }
-  return { url: '', directUrl: '', tunnel: false, token: '', agent: true, memory: true }
+  return {
+    url: '',
+    directUrl: '',
+    tunnel: false,
+    token: '',
+    agent: true,
+    memory: true,
+    conversationIndex: false,
+    referenceIndex: false,
+  }
 }
 
 const write = (config: ServerConfig) => {
@@ -266,13 +281,26 @@ export const serverLogin = async (
 }
 
 /** 修改服务端能力开关（Agent / 记忆） */
-export const setServerOptions = (options: Partial<Pick<ServerConfig, 'agent' | 'memory'>>) => {
+export const setServerOptions = (
+  options: Partial<
+    Pick<ServerConfig, 'agent' | 'memory' | 'conversationIndex' | 'referenceIndex'>
+  >
+) => {
   apply({ ...useServerConfig.getState(), ...options })
 }
 
 /** 断开服务器模式，回到直连 DeepSeek */
 export const serverLogout = () => {
-  apply({ url: '', directUrl: '', tunnel: false, token: '', agent: true, memory: true })
+  apply({
+    url: '',
+    directUrl: '',
+    tunnel: false,
+    token: '',
+    agent: true,
+    memory: true,
+    conversationIndex: false,
+    referenceIndex: false,
+  })
 }
 
 /** 轮次收尾上报（写入长期记忆，fire-and-forget）；write=false 时不写入 */

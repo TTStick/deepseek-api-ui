@@ -5,7 +5,7 @@
 ## 结论
 
 - **仅 Web/手机聊天 + 记忆 + 会话同步**：在启用 HTTPS、强访问密码、`REQUIRE_AUTH=true`、只暴露 80/443 的前提下，可以公网部署。
-- **开放 Agent 模式到公网**：Agent 本质上是**远程代码执行**能力，当前在 server 容器内以 root 运行，能访问容器内的数据卷、环境变量和 Docker 内网。只建议自己使用；不要把密码分享给他人，也不要在不可信环境开放。没有独立沙箱前，不建议作为多用户服务公网运行。
+- **开放 Agent 模式到公网**：Agent 本质上是**远程代码执行**能力。Python 子进程已降权到 UID 10001，读不到 root 0600 的加密密钥与会话密文；但 server 本体仍以 root 运行，能访问数据卷、环境变量和 Docker 内网。只建议自己使用；不要把密码分享给他人，也不要在不可信环境开放。没有独立沙箱前，不建议作为多用户服务公网运行。
 
 ## 已实施的加固
 
@@ -33,6 +33,16 @@
 - `/api/chat`、`/api/mobile/messages`、`/api/compress` 共用每客户端 30 次/分钟限速（`CHAT_RATE_LIMIT_PER_MINUTE`）；模型限制为 `ALLOWED_MODELS` 白名单（默认 `deepseek-flash,deepseek-v4-pro`），`apiKey` 只接受 8–512 位可打印 ASCII，防止换行注入。
 - 后台记忆写入、SSE 收尾等 fire-and-forget 路径全部加 `.catch`，并增加进程级 `unhandledRejection`/`uncaughtException` 兜底：单个坏请求不再能让 Node 进程退出。
 
+### 静态加密
+
+- 会话正文/摘要、压缩摘要、参考资料、Agent 工作区文件、SQLite FTS 索引、用量样本和会话签名密钥均使用 **AES-256-GCM** 加密落盘；文件带 `MAG1` 魔数，直接读取只能看到密文。
+- 每个文件独立随机 IV；AAD 绑定逻辑路径/会话，密文复制到其他文件会触发 GCM 校验失败。
+- 主密钥优先取 `DATA_ENCRYPTION_KEY`，否则读取 `myagent_secrets` 卷中的 `DATA_ENCRYPTION_KEY_FILE`（默认 `/app/secrets/encryption.key`，0600，首次启动生成）。密钥与数据分卷。
+- 启动时自动迁移历史明文文件；密钥指纹存在 `data/encryption.meta`，用错密钥会拒绝启动，不会把数据静默显示为空。
+- FTS 索引不再以明文 SQLite 落盘：查询时解密到内存，修改后重新序列化并加密写回。
+- Python 执行时解密到 tmpfs（`/run/myagent-exec`），子进程降权到 UID 10001；模型生成的代码无法读取 root 密钥、会话密文或 Honcho 凭据。
+- **边界**：这是服务端静态加密，不是端到端加密。server root/拿到密钥的人仍可解密；Honcho 的 Postgres/Redis 仍是明文；浏览器 IndexedDB、手机 SQLite 是设备本地明文；加密前的 Docker 卷备份/NAS 快照仍可能含明文。
+
 ### 依赖
 
 - 升级 Mermaid `11.10.1 → 11.17.2`、KaTeX `0.16.22 → 0.18.2`，并强制 `lodash-es 4.18.1` 覆盖，修复已知 HTML/CSS 注入、原型污染和 DoS 通告。
@@ -40,7 +50,8 @@
 
 ### Agent 执行
 
-- Python 子进程不再继承服务端环境变量中的 `DEEPSEEK_API_KEY`、`HONCHO_*`、`ACCESS_PASSWORD`。
+- Python 子进程不再继承服务端环境变量中的 `DEEPSEEK_API_KEY`、`HONCHO_*`、`ACCESS_PASSWORD`，并以 UID 10001 运行；容器 root 的 0600 密钥/密文不可读。
+- Python 在 tmpfs 中看到工作区明文副本（执行所必需），执行完立即写回密文；tmpfs 父目录 0711、会话临时目录 0700，进程退出后清理。
 - 工作区路径继续做前缀校验；Agent 工具只允许操作会话工作区。
 - 会话同步时会剥离 `ssh` 凭据，SSH 密码/私钥不上传服务端、不下发手机。
 - SSH 连通性测试默认禁止连接回环、内网、链路本地与云元数据地址（防 SSRF）；需要连局域网机器时显式设 `SSH_ALLOW_PRIVATE_HOSTS=true`。返回给前端的错误只保留“认证失败/超时/不可达”分类，不暴露内网 IP、端口或 errno。
@@ -92,7 +103,7 @@
 4. **手机端服务器地址改成 HTTPS 域名**（例如 `https://agent.example.com`）。不要用公网 HTTP，否则密码、Bearer token 和聊天内容会明文传输。
 5. 云防火墙只放行 80/443；如需 SSH 管理，限制来源 IP。
 6. `.env` 含 DeepSeek Key 与访问密码，权限设为 `chmod 600 .env`，不要提交到公开仓库。
-7. 定期备份 `myagent_data` / `myagent_workspaces` 卷，并保持宿主机与镜像更新。
+7. 定期备份 `myagent_data` / `myagent_workspaces`，并**单独备份 `myagent_secrets` 卷中的加密密钥**（丢失密钥会导致数据永久不可读）；保持宿主机与镜像更新。
 8. 若 Web 前端与 API 不同源，在 `.env` 的 `CORS_ORIGINS` 填前端 Origin（逗号分隔，必须带 `https://` 和端口）。
 9. `TRUST_PROXY=true` 只适用于“服务端仅经本仓库 nginx/Caddy 暴露”的场景：两者都会覆写 `X-Forwarded-Host`/`X-Forwarded-For`。若自己改反代，必须确保这两个头被覆盖，否则客户端可伪造。直接暴露 3000 端口时应设 `TRUST_PROXY=false`。
 10. 不需要 SSH 工具时保持 `SSH_ALLOW_PRIVATE_HOSTS=false`；确需连局域网机器再临时开启。
@@ -101,12 +112,12 @@
 
 | 风险 | 说明 | 建议 |
 | --- | --- | --- |
-| Agent 代码执行 | 登录后可在 server 容器内执行任意 Python，容器以 root 运行，可读数据卷、环境变量、Docker 内网 | 仅自己使用；公网高安全场景应把 Agent 执行拆到独立无密钥、无内网权限的 runner 容器 |
+| Agent 代码执行 | 登录后可让模型执行 Python；子进程已降权 UID 10001、读不到加密密钥，但仍可访问 Docker 内网和运行时解密出的工作区明文 | 仅自己使用；公网高安全场景应把 Agent 执行拆到独立无密钥、无内网权限的 runner 容器 |
 | 单用户模型 | 所有会话/记忆/工作区共享一个密码，无用户隔离 | 不要共享密码，不要当多人服务 |
 | 服务端 LLM 密钥 | 任一登录用户都可用服务端 Key 发起真实调用；限速是按客户端内存计数，重启会清零 | 公网务必强密码；可设更低的 `CHAT_RATE_LIMIT_PER_MINUTE`，并在 DeepSeek 控制台设额度告警 |
 | 反代头信任 | `TRUST_PROXY=true` 与 Origin 校验都依赖反代覆写 `X-Forwarded-*` | 使用仓库自带 nginx/Caddy；自定义反代必须覆盖这两个头 |
 | 限速状态 | 登录/聊天限速存在单进程内存，重启或多实例部署会失效 | 公网多实例时用网关/WAF 做限速 |
-| 数据静态未加密 | 会话、记忆、工作区在 Docker 卷中明文保存 | 宿主机全盘加密、卷加密、受控备份 |
+| 静态加密边界 | 应用层加密保护会话/资料/索引/工作区，但 root 或密钥持有者可解密；Honcho 的 Postgres/Redis 仍明文，设备本地存储也明文；旧快照可能保留明文 | 密钥单独备份并限权；敏感会话关闭记忆写入；对 Honcho 卷和整机做 ZFS/LUKS 加密；删除旧快照 |
 | 手机 Bearer token | token 存在 WebView localStorage，30 天有效 | 手机丢失后在网页端改密（会轮换密钥使旧 token 失效） |
 | Debug APK | 当前分发的 `WyDeepSeek-debug.apk` 允许 WebView 调试；仅适合自己安装 | 对外分发请生成签名 release APK（关闭 WebView 调试） |
 | 局域网 HTTP | 手机 App 为兼容局域网允许明文 HTTP | 公网必须 HTTPS；局域网也建议可信 Wi-Fi |

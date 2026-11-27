@@ -677,6 +677,30 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                       />
                     }
                   />
+                  <Row
+                    label={tr('对话索引（进阶）', 'Conversation index (advanced)')}
+                    control={
+                      <Switch
+                        label={tr('对话索引（进阶）', 'Conversation index (advanced)')}
+                        checked={serverConfig.conversationIndex}
+                        toggle={() =>
+                          setServerOptions({ conversationIndex: !serverConfig.conversationIndex })
+                        }
+                      />
+                    }
+                  />
+                  <Row
+                    label={tr('资料索引（进阶）', 'Reference index (advanced)')}
+                    control={
+                      <Switch
+                        label={tr('资料索引（进阶）', 'Reference index (advanced)')}
+                        checked={serverConfig.referenceIndex}
+                        toggle={() =>
+                          setServerOptions({ referenceIndex: !serverConfig.referenceIndex })
+                        }
+                      />
+                    }
+                  />
                 </>
               ) : null}
               {serverEditing || !connected ? (

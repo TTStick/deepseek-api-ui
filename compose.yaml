@@ -87,6 +87,15 @@ services:
       CHAT_RATE_LIMIT_PER_MINUTE: ${CHAT_RATE_LIMIT_PER_MINUTE:-30}
       # 允许请求的模型白名单（逗号分隔）
       ALLOWED_MODELS: ${ALLOWED_MODELS:-deepseek-flash,deepseek-v4-pro}
+      # 服务端静态加密密钥：优先用环境变量；否则从独立密钥卷读取/首次生成。
+      # 密钥卷与数据卷分开，备份数据卷不会连带泄露密钥；密钥丢失则数据不可恢复。
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
+      DATA_ENCRYPTION_KEY_FILE: ${DATA_ENCRYPTION_KEY_FILE:-/app/secrets/encryption.key}
+      # Python 执行时解密到内存盘，不把明文写到持久化卷
+      EXEC_TMP_ROOT: ${EXEC_TMP_ROOT:-/run/myagent-exec}
+    tmpfs:
+      # 足以容纳单会话 256MB 资料 + 生成物的解密副本；不预分配物理内存
+      - /run/myagent-exec:size=512m,mode=700
     volumes:
       - ./server/src:/app/src
       - ./server/test:/app/test
@@ -95,6 +104,8 @@ services:
       - myagent_workspaces:/app/workspaces
       # 访问密码哈希与会话密钥（持久化卷）
       - myagent_data:/app/data
+      # 静态加密主密钥：独立卷，不与数据卷一起备份
+      - myagent_secrets:/app/secrets
     restart: unless-stopped
 
   # 生产预览：docker compose --profile prod up -d --build，浏览器打开 http://localhost:8080
@@ -230,6 +241,8 @@ volumes:
     name: myagent_workspaces
   myagent_data:
     name: myagent_data
+  myagent_secrets:
+    name: myagent_secrets
   caddy_data:
     name: myagent_caddy_data
   caddy_config:

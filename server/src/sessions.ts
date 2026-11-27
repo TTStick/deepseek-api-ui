@@ -1,7 +1,12 @@
-import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
+import { mkdir, readdir, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { env } from './env.js'
+import {
+  isEncrypted,
+  readSecureJson,
+  writeSecure,
+  writeSecureJson,
+} from './storage/crypto.js'
 import { hasExcessiveDepth } from './validation.js'
 
 /**
@@ -37,17 +42,21 @@ const metaFile = (id: string) => path.join(SESSIONS_DIR, `${id}.meta.json`)
 
 const ensureDir = () => mkdir(SESSIONS_DIR, { recursive: true })
 
-const writeAtomic = async (target: string, content: string) => {
-  const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`
-  await writeFile(temporary, content, 'utf8')
-  await rename(temporary, target)
-}
+/** AAD 绑定会话/摘要/墓碑的逻辑身份，密文被挪到其他会话会解密失败。 */
+const sessionAad = (id: string) => `session:${id}`
+const metaAad = (id: string) => `session-meta:${id}`
+const TOMBSTONES_AAD = 'session-tombstones'
 
-const readJson = async <T>(file: string): Promise<T | undefined> => {
+const readJson = async <T>(file: string, aad: string): Promise<T | undefined> => {
   try {
-    return JSON.parse(await readFile(file, 'utf8')) as T
-  } catch {
-    return undefined
+    return await readSecureJson<T>(file, aad)
+  } catch (error) {
+    // 文件不存在按“无记录”处理；密钥错误/密文损坏必须显式失败，
+    // 否则界面会把所有会话当成空列表，看起来像数据丢了。
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT' || error instanceof SyntaxError) {
+      return undefined
+    }
+    throw error
   }
 }
 
@@ -118,7 +127,8 @@ const validateSessionShape = (session: Record<string, unknown>): string | null =
   return null
 }
 
-const summarize = (session: Record<string, unknown>): SessionSummary | null => {  const id = typeof session.id === 'string' ? session.id : ''
+const summarize = (session: Record<string, unknown>): SessionSummary | null => {
+  const id = typeof session.id === 'string' ? session.id : ''
   if (!isValidSessionId(id)) {
     return null
   }
@@ -159,7 +169,11 @@ export const listSessions = async (): Promise<SessionSummary[]> => {
     if (!name.endsWith('.meta.json')) {
       continue
     }
-    const meta = await readJson<SessionSummary>(path.join(SESSIONS_DIR, name))
+    const id = name.slice(0, -'.meta.json'.length)
+    const meta = await readJson<SessionSummary>(
+      path.join(SESSIONS_DIR, name),
+      metaAad(id)
+    )
     if (meta && isValidSessionId(meta.id)) {
       sessions.push(meta)
     }
@@ -171,7 +185,7 @@ export const readSession = async (id: string): Promise<Record<string, unknown> |
   if (!isValidSessionId(id)) {
     return undefined
   }
-  return readJson<Record<string, unknown>>(sessionFile(id))
+  return readJson<Record<string, unknown>>(sessionFile(id), sessionAad(id))
 }
 
 export type ApplyResult = {
@@ -191,12 +205,12 @@ export const writeSession = (id: string, rawSession: Record<string, unknown>): P
       throw new Error('会话结构不合法')
     }
     await ensureDir()
-    const existing = await readJson<SessionSummary>(metaFile(id))
+    const existing = await readJson<SessionSummary>(metaFile(id), metaAad(id))
     if (existing && existing.updatedAt > summary.updatedAt) {
       return { applied: false, summary: existing }
     }
-    await writeAtomic(sessionFile(id), JSON.stringify(session))
-    await writeAtomic(metaFile(id), JSON.stringify(summary))
+    await writeSecureJson(sessionFile(id), session, sessionAad(id))
+    await writeSecureJson(metaFile(id), summary, metaAad(id))
     // 重新创建同名会话时清掉旧墓碑，避免客户端下次拉取又删掉它。
     const tombstones = await readTombstones()
     if (tombstones.some((item) => item.id === id)) {
@@ -226,7 +240,7 @@ export const deleteSession = (id: string): Promise<SessionTombstone> =>
   })
 
 const readTombstones = async (): Promise<SessionTombstone[]> => {
-  const parsed = await readJson<unknown>(TOMBSTONES_FILE)
+  const parsed = await readJson<unknown>(TOMBSTONES_FILE, TOMBSTONES_AAD)
   return Array.isArray(parsed)
     ? parsed.filter(
         (item): item is SessionTombstone =>
@@ -240,10 +254,57 @@ const readTombstones = async (): Promise<SessionTombstone[]> => {
 
 const writeTombstones = async (items: SessionTombstone[]) => {
   await ensureDir()
-  await writeAtomic(TOMBSTONES_FILE, JSON.stringify(items))
+  await writeSecureJson(TOMBSTONES_FILE, items, TOMBSTONES_AAD)
 }
 
 export const listTombstones = (): Promise<SessionTombstone[]> => readTombstones()
+
+/**
+ * 启动时把历史明文会话/摘要/墓碑原地加密。
+ * 密文写入是原子替换，迁移可重复执行；已经是密文的直接跳过。
+ */
+export const migrateSessionStorage = (): Promise<{
+  sessions: number
+  metas: number
+  tombstones: number
+}> =>
+  serial(async () => {
+    await ensureDir()
+    const names = await readdir(SESSIONS_DIR).catch(() => [] as string[])
+    let sessions = 0
+    let metas = 0
+    for (const name of names) {
+      if (name.endsWith('.meta.json')) {
+        const id = name.slice(0, -'.meta.json'.length)
+        const file = path.join(SESSIONS_DIR, name)
+        const raw = await readFile(file)
+        if (!isEncrypted(raw)) {
+          await writeSecure(file, raw, metaAad(id))
+          metas += 1
+        }
+      } else if (name.endsWith('.json')) {
+        const id = name.slice(0, -'.json'.length)
+        const file = path.join(SESSIONS_DIR, name)
+        const raw = await readFile(file)
+        if (!isEncrypted(raw)) {
+          await writeSecure(file, raw, sessionAad(id))
+          sessions += 1
+        }
+      }
+    }
+    let tombstones = 0
+    const raw = await readFile(TOMBSTONES_FILE).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') {
+        return undefined
+      }
+      throw error
+    })
+    if (raw && !isEncrypted(raw)) {
+      await writeSecure(TOMBSTONES_FILE, raw, TOMBSTONES_AAD)
+      tombstones = 1
+    }
+    return { sessions, metas, tombstones }
+  })
 
 /** 启动时清理历史版本曾同步上来的 SSH 凭据（只保留在本机浏览器） */
 export const scrubSessionSecrets = (): Promise<void> =>
@@ -254,10 +315,11 @@ export const scrubSessionSecrets = (): Promise<void> =>
       if (!name.endsWith('.json') || name.endsWith('.meta.json')) {
         continue
       }
+      const id = name.slice(0, -'.json'.length)
       const file = path.join(SESSIONS_DIR, name)
-      const session = await readJson<Record<string, unknown>>(file)
+      const session = await readJson<Record<string, unknown>>(file, sessionAad(id))
       if (session && 'ssh' in session) {
-        await writeAtomic(file, JSON.stringify(withoutSecrets(session)))
+        await writeSecureJson(file, withoutSecrets(session), sessionAad(id))
       }
     }
   })

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { env } from '../env.js'
+import type { IndexOptions } from '../indexing/store.js'
 import { chatRateGuard } from '../rateLimit.js'
 import { hasExcessiveDepth } from '../validation.js'
 import { runChatPipeline, type ChatRequest } from './chat.js'
@@ -27,6 +28,7 @@ export const registerMobile = (app: FastifyInstance) => {
           agent?: { enabled?: boolean }
           memory?: { enabled?: boolean; read?: boolean; write?: boolean }
           compression?: { enabled?: boolean }
+          indexes?: IndexOptions
         }
       | undefined
     if (!body || typeof body !== 'object') {
@@ -95,6 +97,7 @@ export const registerMobile = (app: FastifyInstance) => {
       },
       compression: { enabled: body.compression?.enabled ?? true },
       agent: { enabled: body.agent?.enabled ?? true },
+      ...(body.indexes ? { indexes: body.indexes } : {}),
     }
     return runChatPipeline(reply, input, apiKey)
   })

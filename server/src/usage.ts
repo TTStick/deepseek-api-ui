@@ -1,6 +1,13 @@
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { env } from './env.js'
+import { readSession } from './sessions.js'
+import {
+  isEncrypted,
+  readSecureJson,
+  writeSecure,
+  writeSecureJson,
+} from './storage/crypto.js'
 
 /**
  * 用量统计：扫描服务端会话库里的 usage 快照，汇总 token、请求数与生成速度；
@@ -10,6 +17,7 @@ import { env } from './env.js'
 
 const SESSIONS_DIR = path.join(env.dataRoot, 'sessions')
 const STATE_FILE = path.join(env.dataRoot, 'usage-state.json')
+const STATE_AAD = 'usage-state'
 const BALANCE_URL = `${env.deepseekApiOrigin.replace(/\/+$/, '')}/user/balance`
 const BALANCE_CACHE_MS = 30_000
 const SAMPLE_INTERVAL_MS = 60_000
@@ -134,11 +142,14 @@ const addUsage = (totals: TokenTotals, message: RawMessage) => {
 const dateKey = (time: number, tzOffset: number): string =>
   new Date(time - tzOffset * 60_000).toISOString().slice(0, 10)
 
-const readJson = async <T>(file: string): Promise<T | undefined> => {
+const readJson = async <T>(file: string, aad: string): Promise<T | undefined> => {
   try {
-    return JSON.parse(await readFile(file, 'utf8')) as T
-  } catch {
-    return undefined
+    return await readSecureJson<T>(file, aad)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT' || error instanceof SyntaxError) {
+      return undefined
+    }
+    throw error
   }
 }
 
@@ -200,7 +211,7 @@ const serial = <T>(task: () => Promise<T>): Promise<T> => {
 }
 
 const readState = async (): Promise<UsageState> => {
-  const parsed = await readJson<UsageState>(STATE_FILE)
+  const parsed = await readJson<UsageState>(STATE_FILE, STATE_AAD)
   return {
     samples: Array.isArray(parsed?.samples)
       ? parsed.samples.filter(
@@ -215,10 +226,22 @@ const readState = async (): Promise<UsageState> => {
 }
 
 const writeState = async (state: UsageState) => {
-  await mkdir(env.dataRoot, { recursive: true })
-  const temporary = `${STATE_FILE}.${process.pid}.tmp`
-  await writeFile(temporary, JSON.stringify(state), 'utf8')
-  await rename(temporary, STATE_FILE)
+  await writeSecureJson(STATE_FILE, state, STATE_AAD)
+}
+
+/** 启动时把历史明文用量样本加密（不含聊天正文，但同样统一处理）。 */
+export const migrateUsageStorage = async (): Promise<boolean> => {
+  const raw = await readFile(STATE_FILE).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') {
+      return undefined
+    }
+    throw error
+  })
+  if (!raw || isEncrypted(raw)) {
+    return false
+  }
+  await writeSecure(STATE_FILE, raw, STATE_AAD)
+  return true
 }
 
 const recordSample = (
@@ -294,7 +317,9 @@ export const collectUsage = async (
     if (!name.endsWith('.json') || name.endsWith('.meta.json')) {
       continue
     }
-    const session = await readJson<RawSession>(path.join(SESSIONS_DIR, name))
+    const session = (await readSession(name.slice(0, -'.json'.length))) as
+      | RawSession
+      | undefined
     if (!session || !Array.isArray(session.messages)) {
       continue
     }

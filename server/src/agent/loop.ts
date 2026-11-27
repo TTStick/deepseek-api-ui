@@ -1,5 +1,11 @@
 import { streamUpstream, UpstreamError, type UpstreamRequest } from '../deepseek.js'
-import { AGENT_TOOLS, ToolExecutor, type AgentToolName, type ToolTarget } from './tools.js'
+import type { IndexOptions } from '../indexing/store.js'
+import {
+  agentToolsFor,
+  ToolExecutor,
+  type AgentToolName,
+  type ToolTarget,
+} from './tools.js'
 
 /**
  * Agent 循环（移植 claude-code QueryEngine 的 tool_use/tool_result 循环）：
@@ -53,11 +59,12 @@ const iterate = async (
   request: UpstreamRequest,
   apiKey: string,
   signal: AbortSignal,
-  forward: (block: string) => void
+  forward: (block: string) => void,
+  toolsForTurn: ReturnType<typeof agentToolsFor>
 ): Promise<ParsedTurn> => {
   const upstream: UpstreamRequest = {
     ...request,
-    tools: [...(request.tools ?? []), ...AGENT_TOOLS],
+    tools: [...(request.tools ?? []), ...toolsForTurn],
   }
   const content: ContentBlock[] = []
   let stopReason: string | null = null
@@ -136,6 +143,8 @@ export type AgentLoopParams = {
   forward: (block: string) => void
   /** 自定义事件（工具活动 / 交付物） */
   emit: (event: AgentSinkEvent) => void
+  /** 进阶检索开关；未开启时不会向模型暴露索引工具 */
+  indexes?: IndexOptions
 }
 
 export const runAgentLoop = async ({
@@ -146,14 +155,16 @@ export const runAgentLoop = async ({
   signal,
   forward,
   emit,
+  indexes,
 }: AgentLoopParams): Promise<{ iterations: number; toolCalls: number }> => {
   const messages = [...request.messages] as Array<Record<string, unknown>>
-  const executor = new ToolExecutor(sessionId, target)
+  const executor = new ToolExecutor(sessionId, target, indexes)
+  const toolsForTurn = agentToolsFor(indexes)
   let toolCalls = 0
   let iterations = 0
   try {
     for (iterations = 0; iterations < MAX_AGENT_ITERATIONS; iterations += 1) {
-      const turn = await iterate({ ...request, messages }, apiKey, signal, forward)
+      const turn = await iterate({ ...request, messages }, apiKey, signal, forward, toolsForTurn)
       const toolUses = turn.content.filter(
         (block): block is Extract<ContentBlock, { type: 'tool_use' }> => block.type === 'tool_use'
       )

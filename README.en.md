@@ -96,6 +96,14 @@ flowchart LR
 
 > Head and tail are preserved verbatim; only the middle is replaced by a structured summary, and the next compression iterates on the previous summary.
 
+### Advanced retrieval (optional)
+
+- **Conversation index**: a per-conversation SQLite FTS index over message history; the agent can search earlier turns, including compressed ones.
+- **Reference index**: a chunked Markdown index over the current conversation's `references/`; search returns file path and line range, then `read_file` reads it back with `offset`/`limit`.
+- Two independent switches under Settings → Memory & context; Agent mode is required.
+- **Conversation isolation**: index files are keyed by sessionId hash and tools are bound to the current session; no cross-conversation queries.
+- Reference files are no longer rejected at 2MB; reads are chunked so large files never enter context in one piece.
+
 ### Agent mode (server-side)
 
 - Per-session toggle; each agent session gets an isolated workspace.
@@ -188,6 +196,7 @@ The web UI grew out of DeepSeek chat-demo. The memory and context features are *
 | Self-retrieval / memory recall | Hermes `agent/memory_provider.py`, `agent/memory_context.py`, `plugins/memory/query_rewrite.py`, `session_rules/turns.py` — [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | `server/src/memory/{honcho,queryRewrite,trivial,fence}.ts` | Python → TypeScript behavioral port: trivial-prompt filter, query rewrite regexes, `<memory-context>` fence, bullet dedupe and cadence backoff; multi-provider/cron removed for a single user |
 | Context compression | Hermes `agent/context_compressor.py` ([pinned link](https://github.com/NousResearch/hermes-agent/blob/b98c388a/agent/context_compressor.py)) | `server/src/compression/{window,prompt,compress,tokens}.ts` | Ported the three-window plan, 50% threshold, 64K floor, iterative summaries, `[REDACTED]` secret red-line, static fallback and failure cooldown; compression state lives in session metadata + server memory |
 | Long-conversation management | Hermes archive/token-ledger semantics | `src/services/chat/usage.ts`, `server/src/usage.ts`, message divider | Full history remains visible; the model projection skips archived turns; usage is accumulated per turn and compressed-round count syncs |
+| Conversation / reference indexes | Goose `crates/goose/src/session/chat_history_search.rs` (message keyword search), `services/ask-ai-bot/utils/ai/chunk-markdown.ts` (Markdown chunks), `services/ask-ai-bot/utils/ai/tools/codebase-search.ts` (path/line snippets) | `server/src/indexing/{store,chunk}.ts`, `server/src/agent/tools.ts`, `server/src/agent/workspace.ts` | Reimplemented with Node's built-in SQLite FTS5, one index per session; added `search_conversation` / `search_references` tools and `read_file` offset/limit chunking |
 | Honcho memory backend | [Plastic Labs Honcho](https://github.com/plastic-labs/honcho), `hermes-plugin-honcho` | `server/src/memory/honcho.ts`, `server/src/honcho/api.ts`, Compose profile | Session/peer modeling, context + dialectic layers, batched messages and conclusions; a lightweight client aligned with Honcho v3 REST routes; single user, embeddings off by default |
 | Rewind | Hermes `/rewind` semantics | `src/services/chat/store.ts`, `mobile/src/services/chat/store.ts` | Truncate everything after the target message and ask again; web and Android behave the same |
 | Agent tool loop | Claude Code QueryEngine `tool_use / tool_result` and session-scoped cwd — [anthropics/claude-code](https://github.com/anthropics/claude-code), concept only | `server/src/agent/{loop,tools,workspace,ssh}.ts` | Not a source port: tool protocol, workspace prefix checks, Python isolation and SSH/SFTP rewritten in TypeScript; at most 10 iterations |
@@ -276,6 +285,9 @@ Root `.env` (read by Compose):
 | `ALLOWED_MODELS` | `deepseek-flash,deepseek-v4-pro` | Model allowlist |
 | `CORS_ORIGINS` | mobile WebView + local preview | Additional allowed origins |
 | `HONCHO_BASE_URL` / `HONCHO_API_KEY` | empty / `local` | Self-hosted Honcho endpoint and key |
+| `DATA_ENCRYPTION_KEY` | empty | Optional 32-byte master key (64-char hex / base64); takes precedence over the key file |
+| `DATA_ENCRYPTION_KEY_FILE` | `/app/secrets/encryption.key` | Key file path; generated on first boot if no env key is set |
+| `EXEC_TMP_ROOT` | `/run/myagent-exec` | Decrypted tmpfs for Python execution; must be a memory-backed filesystem |
 
 See [server/.env.example](server/.env.example) and [SECURITY.md](SECURITY.md) for the full list.
 
@@ -285,11 +297,15 @@ See [server/.env.example](server/.env.example) and [SECURITY.md](SECURITY.md) fo
 | --- | --- | --- |
 | Web conversations, drafts, attachment originals | IndexedDB + localStorage | Conversations sync; attachment bytes do not |
 | Android conversations | local SQLite + metadata sidecar | Yes, via server |
-| Server conversations | `myagent_data` volume `/app/data/sessions/` | Shared by both clients |
-| Password hash / session secret | `myagent_data` volume | Server only |
-| Usage samples | `myagent_data` volume `usage-state.json` | Both clients read the same stats |
-| Agent workspace | `myagent_workspaces` volume `/app/workspaces/` | Shared; both clients can view |
-| Honcho memory | `myagent_honcho_pgdata` / `myagent_honcho_redis` volumes | Server side |
+| Server conversations / summaries | `myagent_data` volume `/app/data/sessions/` (AES-256-GCM ciphertext) | Shared by both clients |
+| References / workspace | `myagent_workspaces` volume `/app/workspaces/` (ciphertext) | Shared; both clients can view |
+| Search indexes | `myagent_data` volume `/app/data/indexes/` (ciphertext; decrypted in memory for queries) | Server side |
+| Encryption key | `myagent_secrets` volume `/app/secrets/encryption.key` | Server only |
+| Password hash / session secret | `myagent_data` volume (session secret encrypted) | Server only |
+| Usage samples | `myagent_data` volume `usage-state.json` (ciphertext) | Both clients read the same stats |
+| Honcho memory | `myagent_honcho_pgdata` / `myagent_honcho_redis` volumes | Server side; **still plaintext, requires volume encryption** |
+
+Server conversations, compression summaries, references, agent workspace files and SQLite FTS indexes are encrypted at rest with **AES-256-GCM**; indexes are decrypted into process memory for queries, and Python execution uses a decrypted tmpfs plus an unprivileged UID. The key lives in a separate volume and is generated on first boot; **losing it makes the data unrecoverable**, so back up `myagent_secrets`. Browser IndexedDB, Android SQLite and Honcho's Postgres/Redis are outside this application-layer encryption.
 
 Sync is **last-write-wins** on `updatedAt`; deletes write tombstones, and clients remove local copies and clean up workspaces. The server validates session shape (messages array, finite timestamps, nesting ≤200, ≤20k messages) and strips `ssh` credentials.
 
@@ -337,7 +353,8 @@ All business APIs require a cookie or `Authorization: Bearer`; mobile login uses
 - Single-user access password: scrypt hash, HMAC-signed cookie/Bearer, login rate limit, secret rotation on password change, logout revocation.
 - Public deployment: `REQUIRE_AUTH=true`, HTTPS via Caddy, expose only 80/443, never publish 8090/3000.
 - API hardening: CORS allowlist, CSRF origin checks, chat/compression/SSH rate limits, SSRF blocking, generic errors, session shape validation.
-- Agent mode is **server-side code execution** as root inside the container. Use it only for yourself; split it into a separate sandbox runner for high-security public deployments.
+- **Encryption at rest**: conversations, references, workspace files and search indexes are stored as AES-256-GCM ciphertext with a separately stored key. Existing plaintext files are re-encrypted in place on upgrade. Losing the key makes data unrecoverable; see [DOCKER.md](DOCKER.md).
+- Agent mode is **server-side code execution**: Python now runs as unprivileged UID 10001 and cannot read the encryption key, but the server process itself is still root. Use it only for yourself; split it into a separate sandbox runner for high-security public deployments.
 - An authorized ARTEX 2.2.0 self-test in 2026-11 found and fixed process crashes, XFF rate-limit bypass, SSH SSRF, CSRF/Origin issues and session validation gaps; see [SECURITY.md](SECURITY.md).
 
 ## Tests

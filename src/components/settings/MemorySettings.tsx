@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { getAgentApiOrigin } from '../../services/api/client.js'
 import {
   setCompressionEnabled,
+  setConversationIndexEnabled,
   setMemoryEnabled,
+  setReferenceIndexEnabled,
   setShowRecalledMemory,
   useSettings,
 } from '../../services/settings.js'
@@ -33,6 +35,8 @@ export const MemorySettings = () => {
   const memoryEnabled = useSettings((state) => state.memoryEnabled)
   const showRecalledMemory = useSettings((state) => state.showRecalledMemory)
   const compressionEnabled = useSettings((state) => state.compressionEnabled)
+  const conversationIndexEnabled = useSettings((state) => state.conversationIndexEnabled)
+  const referenceIndexEnabled = useSettings((state) => state.referenceIndexEnabled)
   const [status, setStatus] = useState<MemoryStatus | null>(null)
   const [conclusions, setConclusions] = useState<Conclusion[]>([])
   const [conclusionStatus, setConclusionStatus] = useState<Status>(null)
@@ -170,6 +174,30 @@ export const MemorySettings = () => {
             pressed={compressionEnabled}
             label={t('compressionSwitch')}
             onChange={setCompressionEnabled}
+          />
+        }
+      />
+      <SettingCell
+        label={t('conversationIndexSwitch')}
+        description={t('conversationIndexSwitchDescription')}
+        status={null}
+        action={
+          <Toggle
+            pressed={conversationIndexEnabled}
+            label={t('conversationIndexSwitch')}
+            onChange={setConversationIndexEnabled}
+          />
+        }
+      />
+      <SettingCell
+        label={t('referenceIndexSwitch')}
+        description={t('referenceIndexSwitchDescription')}
+        status={null}
+        action={
+          <Toggle
+            pressed={referenceIndexEnabled}
+            label={t('referenceIndexSwitch')}
+            onChange={setReferenceIndexEnabled}
           />
         }
       />

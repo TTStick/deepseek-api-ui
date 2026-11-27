@@ -38,7 +38,8 @@ const storedSummary = (session: Session): StoredSessionSummary => ({
   fileIds: [
     ...new Set(
       session.messages.flatMap((message) =>
-        message.role === 'user' ? message.files.map((file) => file.id) : []
+        // 兼容 API/旧版本写入的会话：用户消息可能没有 files 字段
+        message.role === 'user' ? (message.files ?? []).map((file) => file.id) : []
       )
     ),
   ],

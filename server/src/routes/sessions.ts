@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { workspaces } from '../agent/workspace.js'
+import { deleteSessionIndex } from '../indexing/store.js'
 import {
   deleteSession,
   isValidSessionId,
@@ -60,8 +61,11 @@ export const registerSessions = (app: FastifyInstance) => {
     }
     try {
       const tombstone = await deleteSession(id)
-      // 删除会话即回收其 agent 工作区与 SSH 连接，避免远端残留
-      await workspaces.cleanup(id).catch(() => undefined)
+      // 删除会话即回收其 agent 工作区、SSH 连接与本次会话的检索索引
+      await Promise.all([
+        workspaces.cleanup(id).catch(() => undefined),
+        deleteSessionIndex(id).catch(() => undefined),
+      ])
       return tombstone
     } catch (error) {
       return reply

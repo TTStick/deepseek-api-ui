@@ -5,6 +5,7 @@ import type { ToolTarget } from '../agent/tools.js'
 import type { SshConfig } from '../agent/ssh.js'
 import { workspaces } from '../agent/workspace.js'
 import { compressor } from '../compression/compress.js'
+import { ensureIndexes, type IndexOptions } from '../indexing/store.js'
 import type { MessageLike } from '../compression/window.js'
 import { streamUpstream, UpstreamError, type UpstreamRequest } from '../deepseek.js'
 import { env } from '../env.js'
@@ -20,6 +21,8 @@ export type ChatRequest = {
   memory?: { enabled?: boolean; read?: boolean; write?: boolean }
   compression?: { enabled?: boolean; thresholdTokens?: number }
   agent?: { enabled?: boolean; ssh?: SshConfig }
+  /** 进阶检索：按当前会话建立的对话索引 / 资料索引 */
+  indexes?: IndexOptions
 }
 
 type UserMessageLike = { role?: string; content?: unknown }
@@ -126,6 +129,13 @@ export const runChatPipeline = async (
   // 自我检索：全局开关 + 本对话读取权限（read=false 时不召回历史记忆）；
   // trivial 查询自动跳过（provider 内部判定）；结果围栏注入最后一条用户消息
   const messages = input.request.messages as MessageLike[]
+  // 索引在召回注入/压缩之前构建，避免把记忆围栏和摘要行写进历史索引。
+  // 构建失败不应阻断聊天：工具调用时会得到“未建立索引”的可读错误。
+  if (input.agent?.enabled && (input.indexes?.conversation || input.indexes?.references)) {
+    await ensureIndexes(input.sessionId, input.request.messages, input.indexes).catch((error) => {
+      reply.log.warn({ err: error, sessionId: input.sessionId }, '构建对话/资料索引失败')
+    })
+  }
   const queryText = extractQueryText(messages)
   const recall =
     input.memory?.enabled && input.memory.read !== false
@@ -245,6 +255,7 @@ export const runChatPipeline = async (
         signal,
         forward: (block) => reply.raw.write(block + '\n\n'),
         emit: (event) => writeEvent(reply.raw, event.type, event),
+        indexes: input.indexes,
       })
     } else {
       for await (const block of streamUpstream(input.request, apiKey, signal)) {

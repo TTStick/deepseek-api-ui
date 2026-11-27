@@ -387,7 +387,8 @@ async function* streamServerMessage(
   sessionId?: string,
   options?: ServerTurnOptions
 ) {
-  const { url, token, agent, memory } = useServerConfig.getState()
+  const { url, token, agent, memory, conversationIndex, referenceIndex } =
+    useServerConfig.getState()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'text/event-stream',
@@ -411,6 +412,10 @@ async function* streamServerMessage(
         },
         compression: { enabled: options?.compression ?? true },
         agent: { enabled: options?.agent ?? agent },
+        indexes: {
+          conversation: conversationIndex,
+          references: referenceIndex,
+        },
       }),
       signal,
     })
