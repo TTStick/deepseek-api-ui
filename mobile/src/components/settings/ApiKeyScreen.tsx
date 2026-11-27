@@ -2,7 +2,18 @@ import { useState } from 'react'
 import { android } from '../../app/android.js'
 import whale from '../../assets/deepseek-whale.svg'
 import { useTranslate } from '../../i18n/index.js'
-import { serverLogin } from '../../services/api/serverMode.js'
+import {
+  rememberDirectUrl,
+  restoreDirectUrl,
+  serverLogin,
+} from '../../services/api/serverMode.js'
+import {
+  openLoginPage,
+  savedAuthKey,
+  targetFromUrl,
+  useTunnel,
+  watchTunnel,
+} from '../../services/tailscale.js'
 import { AdvancedApiDialog } from './AdvancedApiSettings.js'
 import advancedStyles from './AdvancedApiSettings.module.css'
 import { useApiKeyForm } from './useApiKeyForm.js'
@@ -18,6 +29,35 @@ export const ApiKeyScreen = () => {
   const [serverPassword, setServerPassword] = useState('')
   const [serverBusy, setServerBusy] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
+  const tunnel = useTunnel()
+  const [tunnelError, setTunnelError] = useState<string | null>(null)
+  const tunnelTarget = targetFromUrl(serverUrl)
+
+  const toggleTunnel = () => {
+    if (tunnel.enabled) {
+      useTunnel.getState().stop()
+      restoreDirectUrl()
+      setTunnelError(null)
+      return
+    }
+    if (!tunnelTarget) {
+      setTunnelError(t('tsTunnelNeedUrl'))
+      return
+    }
+    setTunnelError(null)
+    rememberDirectUrl(serverUrl)
+    useTunnel.getState().start(tunnelTarget, savedAuthKey())
+    watchTunnel()
+  }
+
+  const tunnelStatus =
+    tunnel.state === 'ready'
+      ? t('tsTunnelConnected', { ip: tunnel.ip })
+      : tunnel.state === 'starting'
+        ? t('tsTunnelStarting')
+        : tunnel.state === 'error'
+          ? t('tsTunnelFailed')
+          : ''
 
   if (serverMode) {
     return (
@@ -31,7 +71,18 @@ export const ApiKeyScreen = () => {
             }
             setServerBusy(true)
             setServerError(null)
-            const result = await serverLogin(serverUrl, serverPassword)
+            const snapshot = useTunnel.getState()
+            const viaTunnel = snapshot.enabled && snapshot.state === 'ready'
+            if (snapshot.enabled && !viaTunnel) {
+              setServerBusy(false)
+              setServerError(t('tsTunnelNeedSignIn'))
+              return
+            }
+            const result = await serverLogin(
+              viaTunnel ? `http://${snapshot.addr}` : serverUrl,
+              serverPassword,
+              { directUrl: serverUrl, tunnel: viaTunnel }
+            )
             setServerBusy(false)
             if (!result.ok) {
               setServerError(result.message ?? t('serverConnectFailed'))
@@ -54,6 +105,30 @@ export const ApiKeyScreen = () => {
             value={serverUrl}
             onChange={(event) => setServerUrl(event.target.value)}
           />
+          {android ? (
+            <div className={styles.tunnel}>
+              <label className={styles.tunnelToggle}>
+                <input type="checkbox" checked={tunnel.enabled} onChange={toggleTunnel} />
+                <span>{t('tsUseTunnel')}</span>
+              </label>
+              {tunnel.enabled ? (
+                <>
+                  <p>{t('tsTunnelHint')}</p>
+                  {tunnelStatus ? <p className={styles.tunnelStatus}>{tunnelStatus}</p> : null}
+                  {tunnel.state === 'starting' && tunnel.loginUrl ? (
+                    <button type="button" className={styles.tunnelLogin} onClick={() => openLoginPage()}>
+                      {t('tsSignIn')}
+                    </button>
+                  ) : null}
+                  {tunnelError || tunnel.error ? (
+                    <div role="alert" className={styles.error}>
+                      {tunnelError || tunnel.error}
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
           <input
             aria-label={t('serverPassword')}
             type="password"

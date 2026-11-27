@@ -64,3 +64,49 @@
   font-size: 14px;
   color: var(--dsw-alias-state-error-primary);
 }
+
+.tunnel {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px dashed var(--dsw-alias-border-l2);
+  border-radius: 14px;
+  text-align: left;
+  font-size: 14px;
+}
+
+.tunnelToggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.tunnelToggle input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--dsw-alias-button-primary-fill);
+}
+
+.tunnel p {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.tunnelStatus {
+  color: var(--dsw-alias-brand-text);
+}
+
+.tunnelLogin {
+  min-height: 40px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

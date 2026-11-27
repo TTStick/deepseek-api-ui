@@ -63,6 +63,9 @@ type TunnelStore = TunnelSnapshot & {
   setEnabled: (enabled: boolean) => void
 }
 
+/** 当前隧道目标，目标变化时需要重启 tsnet */
+let activeTarget = ''
+
 export const useTunnel = create<TunnelStore>((set, get) => ({
   ...EMPTY_TUNNEL,
   enabled: false,
@@ -85,6 +88,11 @@ export const useTunnel = create<TunnelStore>((set, get) => ({
     if (authKey) {
       device.tsSetAuthKey?.(authKey)
     }
+    // 目标地址变化时先停掉旧隧道，tsnet 不会自己改转发目标
+    if (activeTarget && activeTarget !== target) {
+      device.tsStop?.()
+    }
+    activeTarget = target
     device.tsStart(authKey ?? '', target, 'wydeepseek')
     const next = get().refresh()
     set({ enabled: true })
@@ -92,6 +100,7 @@ export const useTunnel = create<TunnelStore>((set, get) => ({
   },
   stop: () => {
     android?.tsStop?.()
+    activeTarget = ''
     set({ ...EMPTY_TUNNEL, enabled: false })
   },
   setEnabled: (enabled) => set({ enabled }),
