@@ -3,7 +3,12 @@ import { android } from './android.js'
 import { useAndroidBackInterception } from './useAndroidBackInterception.js'
 import { useTranslate } from '../i18n/index.js'
 import { useSettings } from '../services/settings.js'
-import { useServerConfig } from '../services/api/serverMode.js'
+import {
+  applyTunnelAddr,
+  restoreDirectUrl,
+  useServerConfig,
+} from '../services/api/serverMode.js'
+import { savedAuthKey, targetFromUrl, useTunnel, waitTunnel } from '../services/tailscale.js'
 import {
   isAndroidWide,
   useIsAndroidWide,
@@ -135,6 +140,29 @@ export const App = () => {
   const configured = useSettings((state) => Boolean(state.apiKey || state.chatConfig.endpoint))
   // 服务器模式同样视为已配置：无需 DeepSeek Key 即可进入聊天
   const serverConfigured = useServerConfig((state) => Boolean(state.url && state.token))
+  // 上次启用了内置 Tailscale：启动时自动恢复隧道，并把请求地址指向新的本地代理端口
+  useEffect(() => {
+    if (!android?.tsStart) {
+      return
+    }
+    const config = useServerConfig.getState()
+    if (!config.tunnel || !config.token) {
+      return
+    }
+    const target = targetFromUrl(config.directUrl || config.url)
+    if (!target) {
+      return
+    }
+    useTunnel.getState().setEnabled(true)
+    useTunnel.getState().start(savedAuthKey(), target)
+    void waitTunnel().then((snapshot) => {
+      if (snapshot.state === 'ready') {
+        applyTunnelAddr(snapshot.addr)
+      } else if (snapshot.state === 'error') {
+        restoreDirectUrl()
+      }
+    })
+  }, [])
   const needsApiKey = Boolean(android && !configured && !serverConfigured)
   const drawerOpen = useMobileSider((state) => state.open)
   const searchOpen = useMobileSider((state) => state.searchOpen)

@@ -753,5 +753,28 @@ public final class MainActivity extends Activity {
                 webView.setSystemGestureExclusionRects(rects);
             });
         }
+
+        // 内置 Tailscale（userspace 隧道）：不建立系统 VPN，只有本 App 到服务器的请求走隧道。
+        @JavascriptInterface
+        public String tsStart(String authKey, String target, String hostname) {
+            TsTunnel tunnel = TsTunnel.get(MainActivity.this);
+            tunnel.start(authKey, target, hostname == null || hostname.isEmpty()
+                ? "wydeepseek" : hostname);
+            return tunnel.status();
+        }
+
+        @JavascriptInterface
+        public String tsStatus() { return TsTunnel.get(MainActivity.this).status(); }
+
+        @JavascriptInterface
+        public void tsStop() { TsTunnel.get(MainActivity.this).stop(); }
+
+        @JavascriptInterface
+        public String tsAuthKey() { return TsTunnel.get(MainActivity.this).authKey(); }
+
+        @JavascriptInterface
+        public boolean tsSetAuthKey(String value) {
+            return TsTunnel.get(MainActivity.this).setAuthKey(value);
+        }
     }
 }

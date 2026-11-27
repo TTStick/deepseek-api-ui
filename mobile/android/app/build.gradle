@@ -20,8 +20,8 @@ android {
         applicationId = 'io.github.lijiahua1024.dsreplica'
         minSdk = 28
         targetSdk = 36
-        versionCode = 35
-        versionName = '0.9.7'
+        versionCode = 36
+        versionName = '0.10.0'
     }
 
     signingConfigs {
@@ -38,6 +38,11 @@ android {
             signingConfig signingConfigs.release
         }
     }
+}
+
+dependencies {
+    // 内置 Tailscale（tsnet userspace 隧道），由 mobile/tsproxy 用 gomobile 构建
+    implementation fileTree(dir: 'libs', include: ['*.aar'])
 }
 
 def webProject = rootProject.projectDir.parentFile
