@@ -298,9 +298,10 @@
   width: 100%;
   padding: 2px 10px;
   border: none;
-  background: var(--dsw-alias-bg-base);
+  background: var(--dsw-specific-sidebar-fill);
   font: inherit;
   font-size: 12px;
+  font-weight: 500;
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary, #999);
   cursor: pointer;
@@ -317,9 +318,10 @@
 
 .archiveCount {
   margin-left: 4px;
-  padding: 0 6px;
-  border-radius: 8px;
-  background: var(--dsw-alias-fill-secondary, rgba(0, 0, 0, 0.06));
+  padding: 0 4px;
+  border-radius: 6px;
+  background: transparent;
   font-size: 11px;
   line-height: 16px;
+  opacity: 0.75;
 }

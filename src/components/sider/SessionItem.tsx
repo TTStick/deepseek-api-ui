@@ -73,7 +73,11 @@ export const SessionItem = memo(function SessionItem({
     >
       <div className={styles.title}>
         {displayTitle}
-        {session.pinned ? <span className={styles.pinBadge}>📌</span> : null}
+        {session.pinned ? (
+          <span className={styles.pinBadge} title={t('sessionPinAction')}>
+            <IconPinOutline16 />
+          </span>
+        ) : null}
         {session.compressedRounds > 0 ? (
           <span className={styles.compressedBadge} title={t('contextCompressedBadge', { count: session.compressedRounds })}>
             🧩

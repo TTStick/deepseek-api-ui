@@ -37,7 +37,14 @@
 }
 
 .groupIcon {
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.groupIcon svg {
+  display: block;
 }
 
 .groupName {

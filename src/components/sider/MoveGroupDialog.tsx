@@ -3,6 +3,7 @@ import { listSessionGroups } from '../../services/chat/sessionGroups.js'
 import { setSessionGroup, useChatStore } from '../../services/chat/store.js'
 import type { SessionSummary } from '../../services/chat/types.js'
 import { useTranslate } from '../../i18n/index.js'
+import { IconCloseOutline16, IconFolderOutline16 } from '../base/icons.js'
 import { Modal } from '../base/Modal.js'
 import styles from './MoveGroupDialog.module.css'
 
@@ -43,13 +44,17 @@ export const MoveGroupDialog = ({
             onClick={() => move(group)}
             disabled={group === session.group}
           >
-            <span className={styles.groupIcon}>📁</span>
+            <span className={styles.groupIcon}>
+              <IconFolderOutline16 />
+            </span>
             <span className={styles.groupName}>{group}</span>
             {group === session.group ? <span className={styles.current}>{t('sessionGroupCurrent')}</span> : null}
           </button>
         ))}
         <button type="button" className={styles.item} onClick={() => move(null)} disabled={!session.group}>
-          <span className={styles.groupIcon}>↩️</span>
+          <span className={styles.groupIcon}>
+            <IconCloseOutline16 />
+          </span>
           <span className={styles.groupName}>{t('sessionGroupNone')}</span>
         </button>
       </div>

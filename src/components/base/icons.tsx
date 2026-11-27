@@ -611,11 +611,11 @@ export const IconFolderOutline16 = () => (
   </svg>
 )
 
-/** 图钉（置顶） */
+/** 图钉（置顶）：简洁的 pushpin，16px 下不会糊成一团 */
 export const IconPinOutline16 = () => (
-  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
-      d="M6.15 1.5L6.5 1.85L6.85 3.5H9.15L9.5 1.85L9.85 1.5H6.15ZM9.2 4.5H6.8L6.95 5.35L5.9 6.4L5.4 5.9L4.35 6.95L7.05 9.65L8.1 8.6L7.6 8.1L8.65 7.05L9.6 7.2L9.2 4.5ZM9.55 4.5L10 7.6L8.9 8.7L6.3 6.1L7.4 5L9.55 4.5ZM4 10.5L6 10.5V14.5H5V11.5H3.5V10.5H4Z"
+      d="M16 12V4h1V2H7v2h1v8l-2 2v2h5v6h2v-6h5v-2l-2-2Z"
       fill="currentColor"
     />
   </svg>

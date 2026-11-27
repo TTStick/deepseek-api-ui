@@ -118,7 +118,16 @@
 }
 
 .pinBadge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
   margin-left: 4px;
-  font-size: 12px;
-  vertical-align: 1px;
+  color: currentColor;
+  opacity: 0.55;
+  vertical-align: -1px;
+
+  > svg {
+    width: 12px;
+    height: 12px;
+  }
 }
