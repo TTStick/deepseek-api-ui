@@ -94,6 +94,47 @@
   scrollbar-color: var(--scroll-color) transparent;
 }
 
+.emptyState {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px 40px;
+  text-align: center;
+}
+
+.emptyTitle {
+  color: var(--dsw-alias-label-primary);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.emptyDescription {
+  margin: 10px 0 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.emptyNewChat {
+  margin-top: 20px;
+  height: 40px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 100px;
+  background: #426efe;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+
+  &:active {
+    opacity: 0.85;
+  }
+}
+
 .section {
   position: relative;
   margin-top: 16px;

@@ -36,16 +36,17 @@ export const MobileHeader = ({
   const activeId = useChatStore((state) => state.activeId)
   return (
     <div className={styles.header}>
-      <IconButton
-        size="xl"
-        tone="primary"
-        className={styles.menu}
-        data-side-shift={android ? 'edge' : undefined}
-        icon={<IconMenuOutline20 />}
-        aria-label={t(androidWide && drawerOpen ? 'collapseSiderbarButton' : 'expandSiderbarButton')}
-        aria-expanded={androidWide ? drawerOpen : undefined}
-        onClick={androidWide ? toggleMobileSider : openMobileSider}
-      />
+      <div className={styles.menuPill} data-side-shift={android ? 'edge' : undefined}>
+        <IconButton
+          size="xl"
+          tone="primary"
+          className={styles.menu}
+          icon={<IconMenuOutline20 />}
+          aria-label={t(androidWide && drawerOpen ? 'collapseSiderbarButton' : 'expandSiderbarButton')}
+          aria-expanded={androidWide ? drawerOpen : undefined}
+          onClick={androidWide ? toggleMobileSider : openMobileSider}
+        />
+      </div>
       {title === undefined && !android ? null : (
         <>
           {title === undefined ? null : (
@@ -53,47 +54,49 @@ export const MobileHeader = ({
               <span className={styles.titleText}>{title}</span>
             </div>
           )}
-          {session ? (
-            <div className={styles.statsSlot} data-side-shift={android ? 'edge' : undefined}>
-              <ContextStats session={session} streaming={streaming} />
-            </div>
-          ) : null}
-          {android ? (
+          <div className={styles.actions}>
+            {session ? (
+              <div className={styles.statsSlot}>
+                <ContextStats session={session} streaming={streaming} />
+              </div>
+            ) : null}
+            {android ? (
+              <IconButton
+                size="xl"
+                tone="primary"
+                className={styles.sound}
+                data-read-state={reading ? readStatus : undefined}
+                icon={<AndroidSound muted={!autoRead && !reading} />}
+                aria-label={t('androidAutoRead')}
+                aria-pressed={autoRead}
+                onClick={() => {
+                  setAutoRead(!autoRead)
+                  if (autoRead) {
+                    stopReadAloud()
+                  }
+                  showToast({ key: autoRead ? 'androidAutoReadDisabled' : 'androidAutoReadEnabled' })
+                }}
+              />
+            ) : null}
             <IconButton
               size="xl"
               tone="primary"
-              className={styles.sound}
-              data-read-state={reading ? readStatus : undefined}
-              icon={<AndroidSound muted={!autoRead && !reading} />}
-              aria-label={t('androidAutoRead')}
-              aria-pressed={autoRead}
+              className={styles.newChat}
+              icon={<IconNewChatOutline20 />}
+              aria-label={t('newChat')}
               onClick={() => {
-                setAutoRead(!autoRead)
-                if (autoRead) {
-                  stopReadAloud()
-                }
-                showToast({ key: autoRead ? 'androidAutoReadDisabled' : 'androidAutoReadEnabled' })
-              }}
-            />
-          ) : null}
-          <IconButton
-            size="xl"
-            tone="primary"
-            className={styles.newChat}
-            icon={<IconNewChatOutline20 />}
-            aria-label={t('newChat')}
-            onClick={() => {
-              if (android && activeId === null) {
-                const current = useToast.getState().message
-                if (typeof current !== 'string' && current?.key === 'androidAlreadyInNewChat') {
+                if (android && activeId === null) {
+                  const current = useToast.getState().message
+                  if (typeof current !== 'string' && current?.key === 'androidAlreadyInNewChat') {
+                    return
+                  }
+                  showToast({ key: 'androidAlreadyInNewChat' }, 2130)
                   return
                 }
-                showToast({ key: 'androidAlreadyInNewChat' }, 2130)
-                return
-              }
-              newChat()
-            }}
-          />
+                newChat()
+              }}
+            />
+          </div>
         </>
       )}
     </div>

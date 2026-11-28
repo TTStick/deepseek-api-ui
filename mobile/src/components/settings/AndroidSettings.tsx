@@ -53,6 +53,7 @@ import {
   IconLightOutline16,
 } from '../base/icons.js'
 import { showToast } from '../base/toastState.js'
+import { isIosTablet, useIsAndroidWide } from '../../app/viewport.js'
 import { closeOverlaySider } from '../sider/mobileSiderState.js'
 import { createSettingsPageMotion } from './androidSettingsMotion.js'
 import { ProfileIcon } from './ProfileAvatar.js'
@@ -286,6 +287,8 @@ export const AndroidSettings = ({ chatFrame }: { chatFrame: RefObject<HTMLDivEle
 
 const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTMLDivElement> }) => {
   const t = useTranslate()
+  const wide = useIsAndroidWide()
+  const tabletWide = isIosTablet && wide
   const {
     locale,
     localePreference,
@@ -481,7 +484,9 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     const parent = parentPage[page]
     const previous = parent
       ? (getPage(parent)?.querySelector<HTMLElement>(`.${styles.pageContent}`) ?? null)
-      : chatFrame.current
+      : tabletWide
+        ? null
+        : chatFrame.current
     exiting.current = false
     const motion = createSettingsPageMotion(settings, content, previous)
     motionRef.current = motion
@@ -497,7 +502,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
       motionRef.current = undefined
       motion.cancel()
     }
-  }, [chatFrame, page])
+  }, [chatFrame, page, tabletWide])
 
   const canPreview = page !== 'font' && popup === null && !busy
   useLayoutEffect(() => {
@@ -581,15 +586,27 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const renderPage = (screen: Page) => (
     <>
       <header className={styles.header}>
-        <button
-          type="button"
-          className={styles.back}
-          aria-label={tr('返回', 'Back')}
-          onClick={back}
-        >
-          <IconChevronRightOutline14 />
-        </button>
+        {tabletWide && screen === 'root' ? null : (
+          <button
+            type="button"
+            className={styles.back}
+            aria-label={tr('返回', 'Back')}
+            onClick={back}
+          >
+            <IconChevronRightOutline14 />
+          </button>
+        )}
         <h1>{labels[screen]}</h1>
+        {tabletWide && screen === 'root' ? (
+          <button
+            type="button"
+            className={styles.close}
+            aria-label={t('close')}
+            onClick={back}
+          >
+            <IconCloseOutline16 />
+          </button>
+        ) : null}
       </header>
       <div className={styles.scroll}>
         {screen === 'root' ? (
@@ -1244,26 +1261,34 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   }
 
   return (
-    <div ref={pagesRef}>
-      {pages.map((screen) => {
-        const active = screen === page
-        return (
-          <section
-            key={screen}
-            ref={(element) => {
-              setInert(element, !active)
-            }}
-            className={styles.page}
-            data-settings-page={screen}
-            role="region"
-            aria-label={labels[screen]}
-            aria-hidden={active ? undefined : true}
-          >
-            <div className={styles.pageContent}>{renderPage(screen)}</div>
-            {active ? popups : null}
-          </section>
-        )
-      })}
+    <div className={styles.stage}>
+      <div
+        ref={pagesRef}
+        className={styles.pages}
+        role={tabletWide ? 'dialog' : undefined}
+        aria-modal={tabletWide ? true : undefined}
+        aria-label={tabletWide ? t('settings') : undefined}
+      >
+        {pages.map((screen) => {
+          const active = screen === page
+          return (
+            <section
+              key={screen}
+              ref={(element) => {
+                setInert(element, !active)
+              }}
+              className={styles.page}
+              data-settings-page={screen}
+              role="region"
+              aria-label={labels[screen]}
+              aria-hidden={active ? undefined : true}
+            >
+              <div className={styles.pageContent}>{renderPage(screen)}</div>
+              {active ? popups : null}
+            </section>
+          )
+        })}
+      </div>
     </div>
   )
 }

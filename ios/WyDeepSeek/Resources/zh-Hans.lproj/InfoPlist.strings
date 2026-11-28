@@ -1,0 +1,5 @@
+"NSCameraUsageDescription" = "拍摄照片并发送到对话中。";
+"NSMicrophoneUsageDescription" = "录制语音并转写为文字。";
+"NSPhotoLibraryUsageDescription" = "从相册选择照片并发送到对话中。";
+"NSPhotoLibraryAddUsageDescription" = "将对话中的图片保存到相册。";
+"NSLocalNetworkUsageDescription" = "连接你所在局域网内的自建 MyAgent 服务器。";

@@ -1,9 +1,20 @@
-.page {
+.stage {
   --settings-bg: #f8f8f8;
   --settings-card: #fff;
   --settings-muted: #8c9097;
   --settings-button: #ebebeb;
   --settings-line: #ececec;
+}
+
+[data-ds-dark-theme] .stage {
+  --settings-bg: #161616;
+  --settings-card: #242424;
+  --settings-muted: #a1a1a4;
+  --settings-button: #303030;
+  --settings-line: #353535;
+}
+
+.page {
   position: fixed;
   z-index: 950;
   inset: 0;
@@ -15,14 +26,6 @@
   color: var(--dsw-alias-label-primary);
   background: var(--settings-bg);
   overflow: hidden;
-}
-
-[data-ds-dark-theme] .page {
-  --settings-bg: #161616;
-  --settings-card: #242424;
-  --settings-muted: #a1a1a4;
-  --settings-button: #303030;
-  --settings-line: #353535;
 }
 
 .pageContent {
@@ -728,4 +731,68 @@ a.row:active,
 
 [data-no-flex-gap] .voiceBody > .dots {
   margin-top: 26px;
+}
+
+@media (min-width: 840px) {
+  [data-ios-tablet] .stage {
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: calc(var(--android-status-inset, 0px) + 16px) 16px
+      calc(var(--android-button-nav-inset, 0px) + 16px);
+    background: rgb(0 0 0 / 22%);
+  }
+
+  [data-ios-tablet] .pages {
+    position: relative;
+    width: 600px;
+    max-width: 100%;
+    height: 700px;
+    max-height: 80vh;
+    overflow: hidden;
+    border-radius: 20px;
+    background: var(--settings-bg);
+    box-shadow: 0 18px 48px rgb(0 0 0 / 28%);
+  }
+
+  [data-ios-tablet] .page {
+    position: absolute;
+    inset: 0;
+    z-index: auto;
+    padding: 0;
+  }
+
+  [data-ios-tablet] .page[data-settings-page='root'] .back {
+    display: none;
+  }
+
+  [data-ios-tablet] .scroll {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  [data-ios-tablet] .close {
+    position: absolute;
+    top: 6px;
+    right: 14px;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--settings-button);
+    color: inherit;
+    cursor: pointer;
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
 }
