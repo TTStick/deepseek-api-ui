@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { android } from '../../app/android.js'
-import { useIsAndroidWide } from '../../app/viewport.js'
+import { isIosTablet, useIsAndroidWide } from '../../app/viewport.js'
 import { useTranslate } from '../../i18n/index.js'
 import {
   IconChevronDownOutline14,
@@ -22,7 +22,7 @@ import { IconButton } from '../base/IconButton.js'
 import { showToast } from '../base/toastState.js'
 import { ProfileAvatar } from '../settings/ProfileAvatar.js'
 import { openSettings } from '../settings/settingsDialogState.js'
-import { closeMobileSider, openDrawerSearch, useMobileSider } from './mobileSiderState.js'
+import { closeMobileSider, closeOverlaySider, openDrawerSearch, useMobileSider } from './mobileSiderState.js'
 import { AndroidContentSearch } from './AndroidContentSearch.js'
 import { MoveGroupDialog } from './MoveGroupDialog.js'
 import { SessionActionDialog } from './SessionActionDialog.js'
@@ -54,6 +54,8 @@ export const Sider = memo(function Sider({ mobile = false }: { mobile?: boolean 
     () => groupSessions(sessions, now, androidDrawer ? pinnedIds : [], t),
     [androidDrawer, sessions, now, pinnedIds, t]
   )
+  // iPad 平板无会话时展示空态；Android/iPhone 保持现有空白列表。
+  const showEmptyState = isIosTablet && groups.length === 0
   // 归档区默认折叠：折叠时只保留分区标题，参与虚拟列表高度计算
   const visibleGroups = useMemo(
     () =>
@@ -226,7 +228,7 @@ export const Sider = memo(function Sider({ mobile = false }: { mobile?: boolean 
         </>
       )}
       <div className={styles.listWrap}>
-        {androidDrawer && !selecting ? (
+        {androidDrawer && !selecting && !showEmptyState ? (
           <IconButton
             className={styles.selectChats}
             icon={
@@ -333,6 +335,22 @@ export const Sider = memo(function Sider({ mobile = false }: { mobile?: boolean 
             )
           })}
         </div>
+        {showEmptyState ? (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyTitle}>{t('siderEmptyTitle')}</div>
+            <p className={styles.emptyDescription}>{t('siderEmptyDescription')}</p>
+            <button
+              type="button"
+              className={styles.emptyNewChat}
+              onClick={() => {
+                newChat()
+                closeOverlaySider()
+              }}
+            >
+              {t('newChat')}
+            </button>
+          </div>
+        ) : null}
       </div>
       <div className={styles.bottom}>
         {selecting ? (

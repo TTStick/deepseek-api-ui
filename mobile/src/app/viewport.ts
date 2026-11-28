@@ -30,6 +30,9 @@ export const isAndroidWide = () => Boolean(android && androidWideQuery.matches)
 export const useIsAndroidWide = () =>
   useSyncExternalStore(android ? subscribeAndroidWide : subscribeNoop, isAndroidWide)
 
+/** 仅 iOS 平板（iPad）。用原生 idiom 标识，避免高度媒体查询在键盘弹出时翻转布局。 */
+export const isIosTablet = Boolean(android?.isTablet?.())
+
 const preventPageScroll = (event: TouchEvent) => {
   if (event.touches.length !== 1) {
     return

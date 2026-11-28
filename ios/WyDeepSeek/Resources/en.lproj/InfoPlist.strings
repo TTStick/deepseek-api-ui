@@ -1,0 +1,5 @@
+"NSCameraUsageDescription" = "Take photos and send them in a conversation.";
+"NSMicrophoneUsageDescription" = "Record your voice and transcribe it to text.";
+"NSPhotoLibraryUsageDescription" = "Choose photos from your library and send them in a conversation.";
+"NSPhotoLibraryAddUsageDescription" = "Save images from a conversation to your photo library.";
+"NSLocalNetworkUsageDescription" = "Connect to your self-hosted MyAgent server on the local network.";

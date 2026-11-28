@@ -4,6 +4,8 @@ export type AndroidBridge = {
   statusInset: () => number
   buttonNavigationInset: () => number
   systemFontScale: () => number
+  /** iOS 平板标识；Android 桥不实现时视为 false */
+  isTablet?: () => boolean
   openAppPermissions: () => void
   updateStatus: () => string
   checkForUpdate: () => void
@@ -27,6 +29,7 @@ export type AndroidBridge = {
   readAccountProfile: () => string | null
   writeAccountProfile: (value: string | null) => boolean
   setDarkBars: (dark: boolean) => void
+  setTextInteraction?: (enabled: boolean) => void
   setHandlesBack: (handlesBack: boolean) => void
   setBackPreviewEnabled: (enabled: boolean) => void
   setImageViewerFullscreen: (fullscreen: boolean) => void

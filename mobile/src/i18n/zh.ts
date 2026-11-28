@@ -56,6 +56,8 @@ export const zh = {
   collapseSiderbarButton: '收起边栏',
   closeSiderbarButton: '关闭侧边栏',
   newChat: '开启新对话',
+  siderEmptyTitle: '暂无对话',
+  siderEmptyDescription: '你与 DeepSeek 的对话将展示在这里',
   untitledChat: '新对话',
   sessionLoading: '正在加载对话...',
   sessionListLoadFailed: '对话列表加载失败，请重试',

@@ -7,6 +7,24 @@
   padding: 12px 10px 4px;
 }
 
+.menuPill {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin-left: auto;
+}
+
+[data-android] .actions .statsSlot,
+[data-android] .actions .sound {
+  margin-left: 0;
+}
+
 .title {
   flex: 1;
   min-width: 0;
@@ -81,4 +99,33 @@
 [data-android] .newChat svg {
   width: 22px;
   height: 22px;
+}
+
+@media (min-width: 840px) {
+  [data-ios-tablet] .header {
+    height: 76px;
+    padding: 20px 24px 0 12px;
+  }
+
+  [data-ios-tablet] .menuPill,
+  [data-ios-tablet] .actions {
+    box-sizing: border-box;
+    padding: 6px;
+    border: 1px solid var(--dsw-alias-border-l2);
+    border-radius: 100px;
+    background: var(--dsw-alias-bg-layer-3);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 4%);
+  }
+
+  [data-ios-tablet] .actions {
+    gap: 2px;
+  }
+
+  [data-ios-tablet] .actions .sound {
+    margin-right: 0;
+  }
+
+  [data-ios-tablet] .title {
+    font-size: 16px;
+  }
 }

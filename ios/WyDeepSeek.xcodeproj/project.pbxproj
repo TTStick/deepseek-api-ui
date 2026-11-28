@@ -1,0 +1,621 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		12F7D3A6377B96E8A2FDE7F9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 436A83CDEC41ABBE0AA2FED6 /* Assets.xcassets */; };
+		18D27E21300EB44005809742 /* NativeRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D3F37E1EEBA1514BC986F5 /* NativeRecorder.swift */; };
+		26A8BD4CE4930F46D89009B2 /* FileExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 662ABF2FB05E14A8B4FF72A5 /* FileExport.swift */; };
+		3608ACCBC6CC01149233E9A3 /* HTTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4835F44653265C725807CBC /* HTTPServer.swift */; };
+		3B301F5FF1FF19BC6E3066EE /* Tsproxy.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 89AA016F753860B44E2AB2B1 /* Tsproxy.xcframework */; };
+		45448F86F8287B7855E40476 /* ImageSave.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101FB5DD00154326881EA35E /* ImageSave.swift */; };
+		61384D682AA12C3E32FE319A /* PhotoLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B1BB4690145BBB4097778BC /* PhotoLibrary.swift */; };
+		6912C24CF7C2B6305EA7862E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99DA7D9075FBA3CA45ED15B5 /* AppDelegate.swift */; };
+		74E8B168EFE0C923E0248937 /* TsTunnel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C46711FF2242D41840BB30C2 /* TsTunnel.swift */; };
+		79FECD341FD4DCE442FD75EB /* SourceBrowserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D22A0AEF2E10CB2FCA43FB75 /* SourceBrowserViewController.swift */; };
+		85C61BBF38AABAD0376103F0 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A2042B40D7DFCC3147554D3 /* AppServices.swift */; };
+		8B99DE7C7C5C28638D2AC066 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 48ED9F36CBB3BF5F754F8DD0 /* InfoPlist.strings */; };
+		93699514F8006B4D7E32568E /* bridge.js in Resources */ = {isa = PBXBuildFile; fileRef = 2A299D5D9FAF8EF51B0677CA /* bridge.js */; };
+		9402599F2BFCFF3368896EE9 /* longpress.js in Resources */ = {isa = PBXBuildFile; fileRef = BAA5E3231493EDD4E7C7A9D8 /* longpress.js */; };
+		9A824A36FD8E5C42C4E9CCAB /* Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 788D264424D49BE5F10B0A42 /* Bridge.swift */; };
+		9EAF98D7AD75F1DB79CD39B8 /* ApiKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F009E8439F79CE70449C1B6 /* ApiKeyStore.swift */; };
+		A16B7C934B0E8728C43CBCC2 /* WebViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40763DDA7AD12C3970F192A6 /* WebViewController.swift */; };
+		A32E014023ED4B5B70A30010 /* errorlog.js in Resources */ = {isa = PBXBuildFile; fileRef = 4187687141F3DCAFF3D0E5A1 /* errorlog.js */; };
+		A3E1F1D1A426CF2B20FE050B /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97776821BC66868A410C344D /* SceneDelegate.swift */; };
+		A40CD6BC37F06992D4B87F1D /* BridgeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7794873F4EDFE1B1AB2F0218 /* BridgeUITests.swift */; };
+		BFCCC8D65784E58428BC3D77 /* SQLite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36AB594CF4E5F9F8C7E3EC66 /* SQLite.swift */; };
+		CE822F9F16BA21BA19A57AAC /* ChatFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B4B8E3FB4C605F7B9A09E21 /* ChatFiles.swift */; };
+		DB26FCC74B7B13E52245FCCD /* WebApp in Resources */ = {isa = PBXBuildFile; fileRef = 76A91831FE338653BC056883 /* WebApp */; };
+		DF3B4A23B4C1B7CCD3F402A7 /* ChatStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459A63B54E368A04D3F34DFE /* ChatStorage.swift */; };
+		F55CBE976CAB3675447A30B6 /* ChatTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F76286717DF1829FEF0EEC7 /* ChatTransport.swift */; };
+		FF04681C364B9F65BF4DFB90 /* Tsproxy.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 89AA016F753860B44E2AB2B1 /* Tsproxy.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		3DA690E3B0BDDF46092C53B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EE757740A3E2F19637CB828B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9B51BCF58F4D6717C4B53E4D;
+			remoteInfo = WyDeepSeek;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		BE71B0B6CEEEC4EE027D6CA0 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				FF04681C364B9F65BF4DFB90 /* Tsproxy.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		101FB5DD00154326881EA35E /* ImageSave.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSave.swift; sourceTree = "<group>"; };
+		20B16C7E589743AAEDEB1F6A /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		2A299D5D9FAF8EF51B0677CA /* bridge.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = bridge.js; sourceTree = "<group>"; };
+		36AB594CF4E5F9F8C7E3EC66 /* SQLite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLite.swift; sourceTree = "<group>"; };
+		40763DDA7AD12C3970F192A6 /* WebViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewController.swift; sourceTree = "<group>"; };
+		4187687141F3DCAFF3D0E5A1 /* errorlog.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = errorlog.js; sourceTree = "<group>"; };
+		436A83CDEC41ABBE0AA2FED6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		459A63B54E368A04D3F34DFE /* ChatStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStorage.swift; sourceTree = "<group>"; };
+		4F009E8439F79CE70449C1B6 /* ApiKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiKeyStore.swift; sourceTree = "<group>"; };
+		4F76286717DF1829FEF0EEC7 /* ChatTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTransport.swift; sourceTree = "<group>"; };
+		5B4B8E3FB4C605F7B9A09E21 /* ChatFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatFiles.swift; sourceTree = "<group>"; };
+		62D3F37E1EEBA1514BC986F5 /* NativeRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeRecorder.swift; sourceTree = "<group>"; };
+		662ABF2FB05E14A8B4FF72A5 /* FileExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileExport.swift; sourceTree = "<group>"; };
+		6A2042B40D7DFCC3147554D3 /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
+		76A91831FE338653BC056883 /* WebApp */ = {isa = PBXFileReference; lastKnownFileType = folder; name = WebApp; path = WyDeepSeek/WebApp; sourceTree = SOURCE_ROOT; };
+		7794873F4EDFE1B1AB2F0218 /* BridgeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeUITests.swift; sourceTree = "<group>"; };
+		788D264424D49BE5F10B0A42 /* Bridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bridge.swift; sourceTree = "<group>"; };
+		82CE0857EB67382F2747A437 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		89AA016F753860B44E2AB2B1 /* Tsproxy.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Tsproxy.xcframework; path = Frameworks/Tsproxy.xcframework; sourceTree = "<group>"; };
+		8B1BB4690145BBB4097778BC /* PhotoLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibrary.swift; sourceTree = "<group>"; };
+		97776821BC66868A410C344D /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		99DA7D9075FBA3CA45ED15B5 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		AC745BF967CDB59586D16B10 /* WyDeepSeekUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = WyDeepSeekUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BAA5E3231493EDD4E7C7A9D8 /* longpress.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = longpress.js; sourceTree = "<group>"; };
+		C46711FF2242D41840BB30C2 /* TsTunnel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TsTunnel.swift; sourceTree = "<group>"; };
+		C4835F44653265C725807CBC /* HTTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPServer.swift; sourceTree = "<group>"; };
+		C566EEA55DA47AA813C996A0 /* WyDeepSeek.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = WyDeepSeek.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D22A0AEF2E10CB2FCA43FB75 /* SourceBrowserViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceBrowserViewController.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E30AFAAE607FAFEFD1407216 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3B301F5FF1FF19BC6E3066EE /* Tsproxy.xcframework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0C4ED057DD95293BA8979D74 /* WyDeepSeek */ = {
+			isa = PBXGroup;
+			children = (
+				3C607A835550387DDE1711DE /* App */,
+				E774E12C96D89D0A90272926 /* Native */,
+				D8046C0D17D8A4E33D947ECF /* Resources */,
+				5DD85BE9D13549448014BAB3 /* Web */,
+				76A91831FE338653BC056883 /* WebApp */,
+			);
+			path = WyDeepSeek;
+			sourceTree = "<group>";
+		};
+		3C607A835550387DDE1711DE /* App */ = {
+			isa = PBXGroup;
+			children = (
+				99DA7D9075FBA3CA45ED15B5 /* AppDelegate.swift */,
+				6A2042B40D7DFCC3147554D3 /* AppServices.swift */,
+				97776821BC66868A410C344D /* SceneDelegate.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		5DD85BE9D13549448014BAB3 /* Web */ = {
+			isa = PBXGroup;
+			children = (
+				788D264424D49BE5F10B0A42 /* Bridge.swift */,
+				C4835F44653265C725807CBC /* HTTPServer.swift */,
+				40763DDA7AD12C3970F192A6 /* WebViewController.swift */,
+			);
+			path = Web;
+			sourceTree = "<group>";
+		};
+		770F8C6EC827E4E083BE3CBB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				89AA016F753860B44E2AB2B1 /* Tsproxy.xcframework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		890859BDA2214E5969200978 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C566EEA55DA47AA813C996A0 /* WyDeepSeek.app */,
+				AC745BF967CDB59586D16B10 /* WyDeepSeekUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D028D727CF520F68A0372E5D /* WyDeepSeekUITests */ = {
+			isa = PBXGroup;
+			children = (
+				7794873F4EDFE1B1AB2F0218 /* BridgeUITests.swift */,
+			);
+			path = WyDeepSeekUITests;
+			sourceTree = "<group>";
+		};
+		D8046C0D17D8A4E33D947ECF /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				48ED9F36CBB3BF5F754F8DD0 /* InfoPlist.strings */,
+				436A83CDEC41ABBE0AA2FED6 /* Assets.xcassets */,
+				2A299D5D9FAF8EF51B0677CA /* bridge.js */,
+				4187687141F3DCAFF3D0E5A1 /* errorlog.js */,
+				BAA5E3231493EDD4E7C7A9D8 /* longpress.js */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		E774E12C96D89D0A90272926 /* Native */ = {
+			isa = PBXGroup;
+			children = (
+				4F009E8439F79CE70449C1B6 /* ApiKeyStore.swift */,
+				5B4B8E3FB4C605F7B9A09E21 /* ChatFiles.swift */,
+				459A63B54E368A04D3F34DFE /* ChatStorage.swift */,
+				4F76286717DF1829FEF0EEC7 /* ChatTransport.swift */,
+				662ABF2FB05E14A8B4FF72A5 /* FileExport.swift */,
+				101FB5DD00154326881EA35E /* ImageSave.swift */,
+				62D3F37E1EEBA1514BC986F5 /* NativeRecorder.swift */,
+				8B1BB4690145BBB4097778BC /* PhotoLibrary.swift */,
+				D22A0AEF2E10CB2FCA43FB75 /* SourceBrowserViewController.swift */,
+				36AB594CF4E5F9F8C7E3EC66 /* SQLite.swift */,
+				C46711FF2242D41840BB30C2 /* TsTunnel.swift */,
+			);
+			path = Native;
+			sourceTree = "<group>";
+		};
+		F4DCFF5040660406705B4035 = {
+			isa = PBXGroup;
+			children = (
+				0C4ED057DD95293BA8979D74 /* WyDeepSeek */,
+				D028D727CF520F68A0372E5D /* WyDeepSeekUITests */,
+				770F8C6EC827E4E083BE3CBB /* Frameworks */,
+				890859BDA2214E5969200978 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1A6631014A5EB6B11B5A1457 /* WyDeepSeekUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A290FA23859C69A40AD1C32F /* Build configuration list for PBXNativeTarget "WyDeepSeekUITests" */;
+			buildPhases = (
+				0B91D3E834C5FB07B9F1B752 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4962186AC4E7AB33FB244B7A /* PBXTargetDependency */,
+			);
+			name = WyDeepSeekUITests;
+			packageProductDependencies = (
+			);
+			productName = WyDeepSeekUITests;
+			productReference = AC745BF967CDB59586D16B10 /* WyDeepSeekUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		9B51BCF58F4D6717C4B53E4D /* WyDeepSeek */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 60E038EA68627554964BCC18 /* Build configuration list for PBXNativeTarget "WyDeepSeek" */;
+			buildPhases = (
+				3D536B328D6AD0F898B2780C /* Build Web Assets */,
+				B39677EEB535C13348E231B1 /* Sources */,
+				3B973ABF5912D1E5A9DC9887 /* Resources */,
+				E30AFAAE607FAFEFD1407216 /* Frameworks */,
+				BE71B0B6CEEEC4EE027D6CA0 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WyDeepSeek;
+			packageProductDependencies = (
+			);
+			productName = WyDeepSeek;
+			productReference = C566EEA55DA47AA813C996A0 /* WyDeepSeek.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		EE757740A3E2F19637CB828B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					1A6631014A5EB6B11B5A1457 = {
+						TestTargetID = 9B51BCF58F4D6717C4B53E4D;
+					};
+					9B51BCF58F4D6717C4B53E4D = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = BB134E3B67C1AE6984311E2F /* Build configuration list for PBXProject "WyDeepSeek" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				"zh-Hans",
+			);
+			mainGroup = F4DCFF5040660406705B4035;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 890859BDA2214E5969200978 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9B51BCF58F4D6717C4B53E4D /* WyDeepSeek */,
+				1A6631014A5EB6B11B5A1457 /* WyDeepSeekUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3B973ABF5912D1E5A9DC9887 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				12F7D3A6377B96E8A2FDE7F9 /* Assets.xcassets in Resources */,
+				8B99DE7C7C5C28638D2AC066 /* InfoPlist.strings in Resources */,
+				DB26FCC74B7B13E52245FCCD /* WebApp in Resources */,
+				93699514F8006B4D7E32568E /* bridge.js in Resources */,
+				A32E014023ED4B5B70A30010 /* errorlog.js in Resources */,
+				9402599F2BFCFF3368896EE9 /* longpress.js in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		3D536B328D6AD0F898B2780C /* Build Web Assets */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Web Assets";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nexport PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\nWEB_DIR=\"$SRCROOT/../mobile\"\nDEST=\"$SRCROOT/WyDeepSeek/WebApp\"\nif [ \"${SKIP_WEB_BUILD:-0}\" != \"1\" ]; then\n  cd \"$WEB_DIR\"\n  if ! command -v pnpm >/dev/null 2>&1; then\n    echo \"error: pnpm not found; install Node.js 22+ and pnpm, or build mobile/dist manually and set SKIP_WEB_BUILD=1\" >&2\n    exit 1\n  fi\n  if [ ! -d node_modules ]; then\n    pnpm install --no-frozen-lockfile\n  fi\n  pnpm build\nfi\nmkdir -p \"$DEST\"\nrsync -a --delete \"$WEB_DIR/dist/\" \"$DEST/\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0B91D3E834C5FB07B9F1B752 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A40CD6BC37F06992D4B87F1D /* BridgeUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B39677EEB535C13348E231B1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9EAF98D7AD75F1DB79CD39B8 /* ApiKeyStore.swift in Sources */,
+				6912C24CF7C2B6305EA7862E /* AppDelegate.swift in Sources */,
+				85C61BBF38AABAD0376103F0 /* AppServices.swift in Sources */,
+				9A824A36FD8E5C42C4E9CCAB /* Bridge.swift in Sources */,
+				CE822F9F16BA21BA19A57AAC /* ChatFiles.swift in Sources */,
+				DF3B4A23B4C1B7CCD3F402A7 /* ChatStorage.swift in Sources */,
+				F55CBE976CAB3675447A30B6 /* ChatTransport.swift in Sources */,
+				26A8BD4CE4930F46D89009B2 /* FileExport.swift in Sources */,
+				3608ACCBC6CC01149233E9A3 /* HTTPServer.swift in Sources */,
+				45448F86F8287B7855E40476 /* ImageSave.swift in Sources */,
+				18D27E21300EB44005809742 /* NativeRecorder.swift in Sources */,
+				61384D682AA12C3E32FE319A /* PhotoLibrary.swift in Sources */,
+				BFCCC8D65784E58428BC3D77 /* SQLite.swift in Sources */,
+				A3E1F1D1A426CF2B20FE050B /* SceneDelegate.swift in Sources */,
+				79FECD341FD4DCE442FD75EB /* SourceBrowserViewController.swift in Sources */,
+				74E8B168EFE0C923E0248937 /* TsTunnel.swift in Sources */,
+				A16B7C934B0E8728C43CBCC2 /* WebViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4962186AC4E7AB33FB244B7A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9B51BCF58F4D6717C4B53E4D /* WyDeepSeek */;
+			targetProxy = 3DA690E3B0BDDF46092C53B9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		48ED9F36CBB3BF5F754F8DD0 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				20B16C7E589743AAEDEB1F6A /* en */,
+				82CE0857EB67382F2747A437 /* zh-Hans */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		115669D449020A03B97FBC7E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 40;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 0.10.4;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = "-lsqlite3";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		59D329510C1278A6D641318B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 40;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 0.10.4;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				OTHER_LDFLAGS = "-lsqlite3";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A1AC580298BB8C43A5A0E740 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
+				INFOPLIST_FILE = WyDeepSeek/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.wydeepseek.app;
+				PRODUCT_NAME = WyDeepSeek;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A901B100F34FFA5257D7792E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
+				INFOPLIST_FILE = WyDeepSeek/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.wydeepseek.app;
+				PRODUCT_NAME = WyDeepSeek;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A9DE22DC35691C313FF37CE1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.wydeepseek.app.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WyDeepSeek;
+			};
+			name = Release;
+		};
+		F7CB5DEB5CCB5881404FFD27 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.wydeepseek.app.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WyDeepSeek;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		60E038EA68627554964BCC18 /* Build configuration list for PBXNativeTarget "WyDeepSeek" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A901B100F34FFA5257D7792E /* Debug */,
+				A1AC580298BB8C43A5A0E740 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A290FA23859C69A40AD1C32F /* Build configuration list for PBXNativeTarget "WyDeepSeekUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F7CB5DEB5CCB5881404FFD27 /* Debug */,
+				A9DE22DC35691C313FF37CE1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BB134E3B67C1AE6984311E2F /* Build configuration list for PBXProject "WyDeepSeek" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				115669D449020A03B97FBC7E /* Debug */,
+				59D329510C1278A6D641318B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = EE757740A3E2F19637CB828B /* Project object */;
+}

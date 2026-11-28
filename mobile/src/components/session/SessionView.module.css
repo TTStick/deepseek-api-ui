@@ -133,3 +133,10 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+@media (min-width: 840px) {
+  [data-ios-tablet] .inputContainer {
+    width: calc(100% - 120px);
+    max-width: none;
+  }
+}

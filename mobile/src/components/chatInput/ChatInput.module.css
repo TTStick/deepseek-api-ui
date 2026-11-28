@@ -807,3 +807,13 @@
 [data-android] body[data-ds-dark-theme] .editClose {
   background: rgb(255 255 255 / 10%);
 }
+
+@media (min-width: 840px) {
+  [data-ios-tablet] .wrapper {
+    font-size: 18px;
+  }
+
+  [data-ios-tablet] .textarea {
+    font-size: 18px;
+  }
+}

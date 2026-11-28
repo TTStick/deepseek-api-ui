@@ -57,6 +57,8 @@ export const en = {
   collapseSiderbarButton: 'Close sidebar',
   closeSiderbarButton: 'Close sidebar',
   newChat: 'New chat',
+  siderEmptyTitle: 'No conversations yet',
+  siderEmptyDescription: 'Your conversations with DeepSeek will appear here',
   untitledChat: 'New chat',
   sessionLoading: 'Loading chats...',
   sessionListLoadFailed: 'Unable to load the chat list. Please try again.',

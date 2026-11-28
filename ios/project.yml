@@ -1,0 +1,96 @@
+name: WyDeepSeek
+
+options:
+  bundleIdPrefix: io.github.wydeepseek
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    MARKETING_VERSION: "0.10.4"
+    CURRENT_PROJECT_VERSION: "40"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    CLANG_ENABLE_MODULES: YES
+    GCC_WARN_UNUSED_VARIABLE: YES
+    OTHER_LDFLAGS: "-lsqlite3"
+
+targets:
+  WyDeepSeek:
+    type: application
+    platform: iOS
+    sources:
+      - path: WyDeepSeek
+        excludes:
+          - WebApp
+          - Resources/Info.plist
+      - path: WyDeepSeek/WebApp
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.wydeepseek.app
+        PRODUCT_NAME: WyDeepSeek
+        INFOPLIST_FILE: WyDeepSeek/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+    dependencies:
+      - framework: Frameworks/Tsproxy.xcframework
+        embed: true
+        codeSign: true
+    preBuildScripts:
+      - name: Build Web Assets
+        basedOnDependencyAnalysis: false
+        script: |
+          set -eu
+          export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+          WEB_DIR="$SRCROOT/../mobile"
+          DEST="$SRCROOT/WyDeepSeek/WebApp"
+          if [ "${SKIP_WEB_BUILD:-0}" != "1" ]; then
+            cd "$WEB_DIR"
+            if ! command -v pnpm >/dev/null 2>&1; then
+              echo "error: pnpm not found; install Node.js 22+ and pnpm, or build mobile/dist manually and set SKIP_WEB_BUILD=1" >&2
+              exit 1
+            fi
+            if [ ! -d node_modules ]; then
+              pnpm install --no-frozen-lockfile
+            fi
+            pnpm build
+          fi
+          mkdir -p "$DEST"
+          rsync -a --delete "$WEB_DIR/dist/" "$DEST/"
+touch "$DEST/.gitkeep"
+
+  WyDeepSeekUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: WyDeepSeekUITests
+    dependencies:
+      - target: WyDeepSeek
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.wydeepseek.app.uitests
+        TEST_TARGET_NAME: WyDeepSeek
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  WyDeepSeek:
+    build:
+      targets:
+        WyDeepSeek: all
+        WyDeepSeekUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - name: WyDeepSeekUITests
+          parallelizable: false
